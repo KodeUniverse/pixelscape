@@ -8,7 +8,7 @@ use crate::events::handle_events;
 use crate::routes::{editor, home};
 
 #[derive(Debug, Default)]
-enum Route {
+pub enum Route {
     #[default]
     Home,
     Editor,
@@ -16,7 +16,7 @@ enum Route {
 
 #[derive(Debug)]
 pub struct App {
-    route: Route,
+    pub route: Route,
     exit: bool,
 }
 impl Default for App {
