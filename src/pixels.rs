@@ -51,14 +51,14 @@ impl Display for PixelColor {
     }
 }
 pub struct PixelGrid {
-    x: u8,
-    y: u8,
+    x: u16,
+    y: u16,
     pixel_count: u32,
     pub grid: Vec<Vec<Pixel>>,
 }
 
 impl PixelGrid {
-    pub fn new(x: u8, y: u8) -> Self {
+    pub fn new(x: u16, y: u16) -> Self {
         let dummy_px = Pixel::new(PixelColor::new(140, 50, 20, None));
         Self {
             x,

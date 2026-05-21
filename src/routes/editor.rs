@@ -1,6 +1,6 @@
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, HorizontalAlignment, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::layout::{Constraint, Flex, HorizontalAlignment, Rect};
+use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, BorderType, Cell, Row, StatefulWidget, Table, TableState, Widget};
 
 use crate::pixels::PixelGrid;
@@ -12,7 +12,7 @@ pub struct Editor {
 impl Default for Editor {
     fn default() -> Self {
         Self {
-            pixel_grid: PixelGrid::new(36, 36),
+            pixel_grid: PixelGrid::new(64, 64),
         }
     }
 }
@@ -33,33 +33,38 @@ impl StatefulWidget for &Editor {
         let inner = block.inner(area);
         let grid_size = self.pixel_grid.grid.len();
 
-        let rows: Vec<Row> = (0..grid_size)
-            .map(|y| {
+        // Half-block "▀" renders 2 pixel rows per terminal row (fg = upper, bg = lower)
+        let half_rows = (grid_size + 1) / 2; // (x+1) / 2 to handle odd sizes
+        let rows: Vec<Row> = (0..half_rows)
+            .map(|row_y| {
+                let upper_y = row_y * 2;
+                let lower_y = row_y * 2 + 1;
                 let cells: Vec<Cell> = (0..grid_size)
                     .map(|x| {
-                        let pixel = &self.pixel_grid.grid[x][y];
-                        let style = Style::default().bg(Color::Rgb(
-                            pixel.color.red,
-                            pixel.color.green,
-                            pixel.color.blue,
-                        ));
-                        Cell::from("  ").style(style)
+                        let upper = &self.pixel_grid.grid[x][upper_y];
+                        let fg = Color::Rgb(upper.color.red, upper.color.green, upper.color.blue);
+                        let style = if lower_y < grid_size {
+                            let lower = &self.pixel_grid.grid[x][lower_y];
+                            Style::default().fg(fg).bg(Color::Rgb(
+                                lower.color.red,
+                                lower.color.green,
+                                lower.color.blue,
+                            ))
+                        } else {
+                            Style::default().fg(fg).bg(fg)
+                        };
+                        Cell::from("▀").style(style)
                     })
                     .collect();
                 Row::new(cells)
             })
             .collect();
 
-        let widths = vec![Constraint::Ratio(1, grid_size as u32); grid_size];
+        let widths = vec![Constraint::Length(1); grid_size];
 
         let table = Table::new(rows, widths)
             .column_spacing(0)
-            .cell_highlight_style(
-                Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Black)
-                    .add_modifier(Modifier::REVERSED),
-            );
+            .flex(Flex::Center);
 
         StatefulWidget::render(table, inner, buf, state);
     }
