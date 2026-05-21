@@ -13,16 +13,19 @@ pub enum Route {
     Home,
     Editor,
 }
-
-#[derive(Debug)]
 pub struct App {
     pub route: Route,
+    pub home: home::Home,
+    pub editor: editor::Editor,
     exit: bool,
 }
+
 impl Default for App {
     fn default() -> Self {
         Self {
             route: Route::Home,
+            home: home::Home::default(),
+            editor: editor::Editor::default(),
             exit: false,
         }
     }

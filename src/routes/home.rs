@@ -4,6 +4,7 @@ use ratatui::symbols::border;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, List, ListItem, Widget};
 
+#[derive(Default)]
 pub struct Home;
 
 impl Widget for &Home {

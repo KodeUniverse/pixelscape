@@ -3,6 +3,7 @@ use ratatui::layout::Rect;
 use ratatui::text::Text;
 use ratatui::widgets::Widget;
 
+#[derive(Default)]
 pub struct Editor;
 
 impl Widget for &Editor {
