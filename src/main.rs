@@ -1,5 +1,6 @@
 mod app;
 mod events;
+mod pixels;
 mod routes;
 
 use crate::app::App;
