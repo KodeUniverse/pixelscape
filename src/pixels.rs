@@ -67,6 +67,9 @@ impl PixelGrid {
             grid: vec![vec![dummy_px; (y - 1).into()]; (x - 1).into()],
         }
     }
+    fn save_to_file() {
+        todo!();
+    }
 }
 
 #[cfg(test)]
