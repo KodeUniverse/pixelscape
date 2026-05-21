@@ -37,6 +37,8 @@ impl StatefulWidget for &Editor {
         let half_rows = (grid_size + 1) / 2; // (x+1) / 2 to handle odd sizes
         let rows: Vec<Row> = (0..half_rows)
             .map(|row_y| {
+                // upper_y, lower_y  multiplied by 2 due to rendering two Pixel structs per
+                // terminal cell.
                 let upper_y = row_y * 2;
                 let lower_y = row_y * 2 + 1;
                 let cells: Vec<Cell> = (0..grid_size)
