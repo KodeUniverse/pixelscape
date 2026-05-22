@@ -31,27 +31,27 @@ impl StatefulWidget for &Editor {
         (&block).render(area, buf);
 
         let inner = block.inner(area);
-        let grid_size = self.pixel_grid.grid.len();
+        let row_size = self.pixel_grid.grid.len();
 
         // Half-block "▀" renders 2 pixel rows per terminal row (fg = upper, bg = lower)
-        let half_rows = (grid_size + 1) / 2; // (x+1) / 2 to handle odd sizes
-        let rows: Vec<Row> = (0..half_rows)
+        let half_row_size = (row_size + 1) / 2; // (x+1) / 2 to handle odd sizes
+        let rows: Vec<Row> = (0..half_row_size)
             .map(|row_y| {
                 // upper_y, lower_y  multiplied by 2 due to rendering two Pixel structs per
                 // terminal cell.
-                let upper_y = row_y * 2;
-                let lower_y = row_y * 2 + 1;
-                let cells: Vec<Cell> = (0..grid_size)
+                let (upper_y, lower_y) = (row_y * 2, row_y * 2 + 1);
+                let cells: Vec<Cell> = (0..row_size)
                     .map(|x| {
-                        let upper = &self.pixel_grid.grid[x][upper_y];
-                        let fg = Color::Rgb(upper.color.red, upper.color.green, upper.color.blue);
-                        let style = if lower_y < grid_size {
-                            let lower = &self.pixel_grid.grid[x][lower_y];
-                            Style::default().fg(fg).bg(Color::Rgb(
-                                lower.color.red,
-                                lower.color.green,
-                                lower.color.blue,
-                            ))
+                        let (upper, lower) = (
+                            &self.pixel_grid.grid[x][upper_y],
+                            &self.pixel_grid.grid[x][lower_y],
+                        );
+                        let (fg, bg) = (
+                            Color::Rgb(upper.color.red, upper.color.green, upper.color.blue),
+                            Color::Rgb(lower.color.red, lower.color.green, lower.color.blue),
+                        );
+                        let style = if lower_y < row_size {
+                            Style::default().fg(fg).bg(bg)
                         } else {
                             Style::default().fg(fg).bg(fg)
                         };
@@ -62,7 +62,7 @@ impl StatefulWidget for &Editor {
             })
             .collect();
 
-        let widths = vec![Constraint::Length(1); grid_size];
+        let widths = vec![Constraint::Length(1); row_size];
 
         let table = Table::new(rows, widths)
             .column_spacing(0)

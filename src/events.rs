@@ -1,7 +1,6 @@
 use crate::app::{App, Route};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use std::io;
-use std::io::{Error, ErrorKind};
 
 pub fn handle_events(app: &mut App) -> io::Result<()> {
     match read_event()? {
