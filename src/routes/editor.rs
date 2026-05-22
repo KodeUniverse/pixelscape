@@ -1,9 +1,9 @@
+use crate::pixels::PixelGrid;
+use log::info;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Flex, HorizontalAlignment, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::{Block, BorderType, Cell, Row, StatefulWidget, Table, TableState, Widget};
-
-use crate::pixels::PixelGrid;
 
 pub struct Editor {
     pub pixel_grid: PixelGrid,
@@ -46,14 +46,17 @@ impl StatefulWidget for &Editor {
                             &self.pixel_grid.grid[x][upper_y],
                             &self.pixel_grid.grid[x][lower_y],
                         );
-                        let (fg, bg) = (
+                        let (upper_color, lower_color) = (
                             Color::Rgb(upper.color.red, upper.color.green, upper.color.blue),
                             Color::Rgb(lower.color.red, lower.color.green, lower.color.blue),
                         );
+                        // Style implements Stylize trait. Stylize::fg sets  color of the top
+                        // pixel, Stylize::bg sets the bottom pixel color
                         let style = if lower_y < row_size {
-                            Style::default().fg(fg).bg(bg)
+                            Style::default().fg(upper_color).bg(lower_color)
                         } else {
-                            Style::default().fg(fg).bg(fg)
+                            info!("in pix styling, reached else condition (lower_y >= row_size)");
+                            Style::default().fg(upper_color).bg(Color::Blue)
                         };
                         Cell::from("▀").style(style)
                     })
@@ -67,6 +70,7 @@ impl StatefulWidget for &Editor {
         let table = Table::new(rows, widths)
             .column_spacing(0)
             .flex(Flex::Center);
+        //            .cell_highlight_style(Style::default().bg(Color::Red));
 
         StatefulWidget::render(table, inner, buf, state);
     }

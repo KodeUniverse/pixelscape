@@ -34,7 +34,6 @@ impl Default for App<'_> {
         };
         out.home_list_state.select_first();
         out.pixel_select_state.select_first();
-        out.pixel_select_state.select_first_column();
         return out;
     }
 }
