@@ -2,9 +2,9 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::symbols::border;
-use ratatui::text::{Line, Text};
+use ratatui::text::Line;
 use ratatui::widgets::{
-    Block, HighlightSpacing, List, ListItem, ListState, StatefulWidget, Widget,
+    Block, List, ListItem, ListState, StatefulWidget, Widget,
 };
 #[derive(Default)]
 pub struct Home;

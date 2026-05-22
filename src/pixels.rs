@@ -51,20 +51,20 @@ impl Display for PixelColor {
     }
 }
 pub struct PixelGrid {
-    x: u16,
-    y: u16,
-    pixel_count: u32,
+    pub width: u16,
+    pub height: u16,
+    pub pixel_count: u32,
     pub grid: Vec<Vec<Pixel>>,
 }
 
 impl PixelGrid {
-    pub fn new(x: u16, y: u16) -> Self {
+    pub fn new(width: u16, height: u16) -> Self {
         let dummy_px = Pixel::new(PixelColor::new(140, 50, 20, None));
         Self {
-            x,
-            y,
-            pixel_count: (x as u32 * y as u32),
-            grid: vec![vec![dummy_px; y as usize]; x as usize],
+            width,
+            height,
+            pixel_count: (width as u32 * height as u32),
+            grid: vec![vec![dummy_px; height as usize]; width as usize],
         }
     }
     pub fn save_to_file() {
