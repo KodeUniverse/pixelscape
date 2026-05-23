@@ -1,4 +1,4 @@
-use crate::pixels::PixelGrid;
+use crate::pixels::{Pixel, PixelGrid};
 use log::info;
 
 use ratatui::buffer::Buffer;
@@ -8,14 +8,18 @@ use ratatui::widgets::Widget;
 
 pub struct PixelCanvas {
     pub grid: PixelGrid,
+    pub canvas_h: u16,
+    pub canvas_w: u16,
     pub x: u16,
     pub y: u16,
 }
 
 impl PixelCanvas {
-    pub fn new(width: u16, height: u16) -> Self {
+    pub fn new(grid_w: u16, grid_h: u16) -> Self {
         Self {
-            grid: PixelGrid::new(width, height),
+            grid: PixelGrid::new(grid_w, grid_h),
+            canvas_w: grid_w,
+            canvas_h: (grid_h + 1) / 2,
             x: 0,
             y: 0,
         }
@@ -39,6 +43,8 @@ impl Default for PixelCanvas {
         Self {
             x: 0,
             y: 0,
+            canvas_w: 64,
+            canvas_h: 32,
             grid: PixelGrid::new(64, 64),
         }
     }
@@ -46,7 +52,7 @@ impl Default for PixelCanvas {
 
 impl Widget for &mut PixelCanvas {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let rows = (self.grid.height + 1) / 2;
+        let rows = (self.grid.height + 1) / 2; // to handle odd values also
         let cols = self.grid.width;
 
         let x_off = area.x + (area.width.saturating_sub(cols)) / 2;
@@ -58,21 +64,14 @@ impl Widget for &mut PixelCanvas {
             for col in 0..cols {
                 let idx_col = col as usize;
                 let upper = &self.grid.grid[idx_col][row_upper];
-                let mut upper_color: Color = upper.color.into();
-                let mut lower_color = if row_lower < self.grid.height as usize {
+                let upper_color: Color = upper.color.into();
+
+                let lower_color = if row_lower < self.grid.height as usize {
                     let lower = &self.grid.grid[idx_col][row_lower];
                     lower.color.into()
                 } else {
                     Color::Reset
                 };
-
-                if col == self.x {
-                    if row_upper == self.y as usize {
-                        upper_color = upper.color.invert().into();
-                    } else if row_lower == self.y as usize {
-                        lower_color = self.grid.grid[idx_col][row_lower].color.invert().into();
-                    }
-                }
 
                 if let Some(cell) = buf.cell_mut(Position::new(x_off + col, y_off + row)) {
                     cell.set_char('▀');
@@ -81,5 +80,33 @@ impl Widget for &mut PixelCanvas {
                 }
             }
         }
+        // render selection marker
+        let mut neighbor_render = |x: u16, y: u16| {
+            let above = if y != 0 { (x, y - 1) } else { (x, 0) };
+            let below = if y != self.canvas_h {
+                (x, y + 1)
+            } else {
+                (x, self.canvas_h)
+            };
+
+            let left = if x != 0 { (x - 1, y) } else { (0, y) };
+            let right = if x != self.canvas_w {
+                (x + 1, y)
+            } else {
+                (self.canvas_w, y)
+            };
+
+            //above
+            if let Some(cell) = buf.cell_mut(Position::new(x_off + above.0, y_off + above.1)) {
+                cell.bg = Color::White;
+            }
+            //below
+            if let Some(cell) = buf.cell_mut(Position::new(x_off + below.0, y_off + below.1)) {
+                cell.fg = Color::White;
+            }
+        };
+        // render selection marker
+        let (select_x, select_y) = (self.x, self.y);
+        neighbor_render(select_x, select_y);
     }
 }
