@@ -1,5 +1,46 @@
 use std::fmt::Display;
 
+use ratatui::style::Color;
+
+#[derive(Debug, Clone, Copy)]
+pub struct PixelColor {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+    pub opacity: Option<u8>,
+}
+
+impl PixelColor {
+    pub fn new(red: u8, green: u8, blue: u8, opacity: Option<u8>) -> Self {
+        Self { red, green, blue, opacity }
+    }
+
+    pub fn invert(&self) -> Self {
+        Self {
+            red: 255 - self.red,
+            green: 255 - self.green,
+            blue: 255 - self.blue,
+            opacity: self.opacity,
+        }
+    }
+}
+
+impl Display for PixelColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "rgb({}, {}, {}), opacity: {:?}",
+            self.red, self.green, self.blue, self.opacity
+        )
+    }
+}
+
+impl From<PixelColor> for Color {
+    fn from(val: PixelColor) -> Self {
+        Color::Rgb(val.red, val.green, val.blue)
+    }
+}
+
 pub struct Pixel {
     pub color: PixelColor,
 }
@@ -19,37 +60,6 @@ impl Display for Pixel {
     }
 }
 
-pub struct PixelColor {
-    pub red: u8,
-    pub green: u8,
-    pub blue: u8,
-    pub opacity: u8,
-}
-impl PixelColor {
-    pub fn new(red: u8, green: u8, blue: u8, opacity: Option<u8>) -> Self {
-        let int_opacity = opacity.unwrap_or_else(|| 1);
-        Self {
-            red,
-            green,
-            blue,
-            opacity: int_opacity,
-        }
-    }
-}
-impl Clone for PixelColor {
-    fn clone(&self) -> Self {
-        PixelColor::new(self.red, self.green, self.blue, Option::from(self.opacity))
-    }
-}
-impl Display for PixelColor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Red: {}, Green: {}, Blue: {}, Opacity: {}",
-            self.red, self.green, self.blue, self.opacity
-        )
-    }
-}
 pub struct PixelGrid {
     pub width: u16,
     pub height: u16,

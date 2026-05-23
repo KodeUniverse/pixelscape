@@ -25,6 +25,6 @@ impl Widget for &mut Editor {
             .title_alignment(HorizontalAlignment::Center)
             .border_type(BorderType::Thick);
         (&block).render(area, buf);
-        (&self.canvas).render(block.inner(area), buf);
+        (&mut self.canvas).render(block.inner(area), buf);
     }
 }
