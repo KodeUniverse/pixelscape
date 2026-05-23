@@ -1,4 +1,4 @@
-use crate::pixels::{Pixel, PixelGrid};
+use crate::pixels::PixelGrid;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Position, Rect};
 use ratatui::style::Color;
@@ -43,33 +43,31 @@ impl Default for PixelCanvas {
 }
 
 impl Widget for &PixelCanvas {
-    fn render(self, _area: Rect, buf: &mut Buffer) {
-        let table_height = ((self.grid.height + 1) / 2) as usize;
-        let table_width = self.grid.width as usize;
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let rows = (self.grid.height + 1) / 2;
+        let cols = self.grid.width;
 
-        for row in 0..table_height {
-            let (row_upper, row_lower) = (row * 2, row * 2 + 1);
-            for col in 0..table_width {
-                let upper: &Pixel = &self.grid.grid[col][row_upper];
+        let x_off = area.x + (area.width.saturating_sub(cols)) / 2;
+        let y_off = area.y + (area.height.saturating_sub(rows)) / 2;
+
+        for row in 0..rows {
+            let row_upper = row as usize * 2;
+            let row_lower = row_upper + 1;
+            for col in 0..cols {
+                let idx_col = col as usize;
+                let upper = &self.grid.grid[idx_col][row_upper];
                 let upper_color = Color::Rgb(upper.color.red, upper.color.green, upper.color.blue);
                 let lower_color = if row_lower < self.grid.height as usize {
-                    // index guard for odd heights
-                    let lower: &Pixel = &self.grid.grid[col][row_lower];
+                    let lower = &self.grid.grid[idx_col][row_lower];
                     Color::Rgb(lower.color.red, lower.color.green, lower.color.blue)
                 } else {
-                    Color::Reset // will render a transparent row on the bottom of table
-                    // when table_height is odd
+                    Color::Reset
                 };
 
-                let cell_opt = buf.cell_mut(Position::new(row as u16, col as u16));
-
-                match cell_opt {
-                    Some(mut cell) => {
-                        cell = cell.set_char('▀');
-                        cell.fg = upper_color;
-                        cell.bg = lower_color;
-                    }
-                    None => {}
+                if let Some(cell) = buf.cell_mut(Position::new(x_off + col, y_off + row)) {
+                    cell.set_char('▀');
+                    cell.fg = upper_color;
+                    cell.bg = lower_color;
                 }
             }
         }
