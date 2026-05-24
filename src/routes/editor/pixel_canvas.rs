@@ -83,9 +83,10 @@ impl Widget for &mut PixelCanvas {
         let left_neighbor = self
             .grid
             .get(self.cursor.x.saturating_sub(1), self.cursor.y);
-        let right_neighbor = self
-            .grid
-            .get(self.cursor.x.saturating_add(1), self.cursor.y);
+        let right_neighbor = self.grid.get(
+            self.cursor.x.saturating_add(1).min(self.grid.width - 1),
+            self.cursor.y,
+        );
 
         let avg_neighbor_color = PixelColor::new(
             ((left_neighbor.color.red as usize + right_neighbor.color.red as usize) / 2)
