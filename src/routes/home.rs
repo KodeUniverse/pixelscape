@@ -2,10 +2,8 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::symbols::border;
-use ratatui::text::{Line, Text};
-use ratatui::widgets::{
-    Block, HighlightSpacing, List, ListItem, ListState, StatefulWidget, Widget,
-};
+use ratatui::text::Line;
+use ratatui::widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget};
 #[derive(Default)]
 pub struct Home;
 
@@ -23,7 +21,7 @@ impl StatefulWidget for &Home {
         let vert = Layout::vertical([Constraint::Fill(1), Constraint::Percentage(40)]).split(area);
         let block_slot = Rect::new(area.width / 2 - 25, vert[1].y, 50, 10);
         let block = Block::bordered().border_set(border::THICK);
-        Line::from("PIXTERM")
+        Line::from("PIXELSCAPE")
             .centered()
             .render(vert[0].centered_vertically(Constraint::Percentage(30)), buf);
 

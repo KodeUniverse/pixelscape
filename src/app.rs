@@ -1,9 +1,10 @@
-use ratatui::widgets::{ListState, StatefulWidget, TableState};
+use ratatui::widgets::ListState;
+
 use ratatui::{DefaultTerminal, Frame};
 use std::io;
 
 use crate::events::handle_events;
-use crate::routes::editor::Editor;
+use crate::pixels::PixelColor;
 use crate::routes::{editor, home};
 
 #[derive(Debug, Default)]
@@ -13,32 +14,34 @@ pub enum Route {
     Editor,
 }
 
-pub struct App<'a> {
+pub struct App {
     pub route: Route,
     pub home: home::Home,
-    pub editor: editor::Editor,
+    pub editor: editor::layout::Editor,
     pub home_list_state: ListState,
-    pub pixel_select_state: <&'a Editor as StatefulWidget>::State,
     exit: bool,
 }
 
-impl Default for App<'_> {
+impl Default for App {
     fn default() -> Self {
-        let mut out = Self {
+        let mut app = Self {
             route: Route::Home,
             home: home::Home::default(),
-            editor: editor::Editor::default(),
+            editor: editor::layout::Editor::default(),
             home_list_state: ListState::default(),
-            pixel_select_state: TableState::default(),
             exit: false,
         };
-        out.home_list_state.select_first();
-        out.pixel_select_state.select_first();
-        out.pixel_select_state.select_first_column();
-        return out;
+
+        app.home_list_state.select_first();
+        app.editor.canvas.grid.get_mut(0, 1).color = PixelColor::new(0, 255, 0, None);
+        //app.editor.canvas.grid.get(0, 61).color = PixelColor::new(0, 0, 255, None);
+        app.editor.canvas.grid.get_mut(1, 0).color = PixelColor::new(150, 200, 220, None);
+        //app.editor.canvas.grid.get(61, 0).color = PixelColor::new(50, 50, 50, None);
+
+        app
     }
 }
-impl App<'_> {
+impl App {
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
@@ -56,11 +59,7 @@ impl App<'_> {
                 frame.render_stateful_widget(&self.home, frame.area(), &mut self.home_list_state);
             }
             Route::Editor => {
-                frame.render_stateful_widget(
-                    &self.editor,
-                    frame.area(),
-                    &mut self.pixel_select_state,
-                );
+                frame.render_widget(&mut self.editor, frame.area());
             }
         }
     }

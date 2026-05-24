@@ -1,7 +1,9 @@
 use crate::app::{App, Route};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, ModifierKeyCode,
+};
+use log::info;
 use std::io;
-
 pub fn handle_events(app: &mut App) -> io::Result<()> {
     match read_event()? {
         Some(event) => match app.route {
@@ -20,33 +22,18 @@ fn read_event() -> io::Result<Option<KeyEvent>> {
 }
 
 fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
-    let state = &mut app.pixel_select_state;
-    let grid_size = app.editor.pixel_grid.grid.len();
     match key_event.code {
         KeyCode::Char('q') => app.exit(),
-        KeyCode::Up => {
-            let y = state.selected().unwrap_or(0);
-            if y > 0 {
-                state.select(Some(y - 1));
-            }
-        }
-        KeyCode::Down => {
-            let y = state.selected().unwrap_or(0);
-            if y < grid_size - 1 {
-                state.select(Some(y + 1));
-            }
-        }
-        KeyCode::Left => {
-            let x = state.selected_column().unwrap_or(0);
-            if x > 0 {
-                state.select_column(Some(x - 1));
-            }
-        }
-        KeyCode::Right => {
-            let x = state.selected_column().unwrap_or(0);
-            if x < grid_size - 1 {
-                state.select_column(Some(x + 1));
-            }
+        KeyCode::Up => app.editor.canvas.move_select_up(1),
+        KeyCode::Down => app.editor.canvas.move_select_down(1),
+        KeyCode::Left => app.editor.canvas.move_select_left(1),
+        KeyCode::Right => app.editor.canvas.move_select_right(1),
+
+        // Vim Keybindings
+        KeyCode::Char('G') => {
+            app.editor
+                .canvas
+                .move_select_down(app.editor.canvas.grid.height - 1);
         }
         _ => {}
     }
@@ -63,10 +50,7 @@ fn handle_home(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
             app.home_list_state.scroll_down_by(1);
         }
         KeyCode::Enter => {
-            let selection = app
-                .home_list_state
-                .selected_mut()
-                .unwrap_or_else(|| usize::MAX);
+            let selection = app.home_list_state.selected_mut().unwrap_or(usize::MAX);
 
             match selection {
                 0 => app.route = Route::Editor, //create project,
