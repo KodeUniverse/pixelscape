@@ -13,8 +13,6 @@ pub struct Cursor {
 
 pub struct PixelCanvas {
     pub grid: PixelGrid,
-    pub canvas_h: u16,
-    pub canvas_w: u16,
     pub cursor: Cursor,
 }
 
@@ -22,8 +20,6 @@ impl PixelCanvas {
     pub fn new(grid_w: u16, grid_h: u16) -> Self {
         Self {
             grid: PixelGrid::new(grid_w, grid_h),
-            canvas_w: grid_w,
-            canvas_h: (grid_h + 1) / 2,
             cursor: Cursor { x: 0, y: 0 },
         }
     }
@@ -31,10 +27,10 @@ impl PixelCanvas {
         self.cursor.y = self.cursor.y.saturating_sub(by);
     }
     pub fn move_select_down(&mut self, by: u16) {
-        self.cursor.y = self.cursor.y.saturating_add(by).min(self.canvas_h - 1);
+        self.cursor.y = self.cursor.y.saturating_add(by).min(self.grid.height - 1);
     }
     pub fn move_select_right(&mut self, by: u16) {
-        self.cursor.x = self.cursor.x.saturating_add(by).min(self.canvas_w - 1);
+        self.cursor.x = self.cursor.x.saturating_add(by).min(self.grid.width - 1);
     }
     pub fn move_select_left(&mut self, by: u16) {
         self.cursor.x = self.cursor.x.saturating_sub(by);
@@ -44,8 +40,6 @@ impl PixelCanvas {
 impl Default for PixelCanvas {
     fn default() -> Self {
         Self {
-            canvas_w: 64,
-            canvas_h: 32,
             cursor: Cursor { x: 0, y: 0 },
             grid: PixelGrid::new(64, 64),
         }
@@ -79,47 +73,51 @@ impl Widget for &mut PixelCanvas {
                 }
             }
         }
-        // render selection marker
-        let mut neighbor_render = |x: u16, y: u16| {
-            let above = if y != 0 { (x, y - 1) } else { (x, 0) };
-            let below = if y != self.canvas_h {
-                (x, y + 1)
-            } else {
-                (x, self.canvas_h)
-            };
+        let px = self.cursor.x;
+        let py = self.cursor.y;
+        let ty = py / 2;
+        let upper = py % 2 == 0;
 
-            let left = if x != 0 { (x - 1, y) } else { (0, y) };
-            let right = if x != self.canvas_w {
-                (x + 1, y)
-            } else {
-                (self.canvas_w, y)
-            };
+        info!("pixel ({px}, {py})  terminal ({px}, {ty})");
 
-            //above
-            if let Some(cell) = buf.cell_mut(Position::new(x_off + above.0, y_off + above.1)) {
-                cell.bg = Color::White;
+        // north
+        if py > 0 {
+            let cell = buf.cell_mut(Position::new(x_off + px, y_off + ty - if upper { 1 } else { 0 }));
+            if let Some(cell) = cell {
+                if upper {
+                    cell.bg = Color::White;
+                } else {
+                    cell.fg = Color::White;
+                }
             }
-            //left
-            if let Some(cell) = buf.cell_mut(Position::new(x_off + left.0, y_off + left.1)) {
-                cell.set_char('▌').set_bg(Color::White);
+        }
+
+        // south
+        if py + 1 < self.grid.height {
+            let cell = buf.cell_mut(Position::new(x_off + px, y_off + ty + if upper { 0 } else { 1 }));
+            if let Some(cell) = cell {
+                if upper {
+                    cell.bg = Color::White;
+                } else {
+                    cell.fg = Color::White;
+                }
             }
-            //right
-            if let Some(cell) = buf.cell_mut(Position::new(x_off + right.0, y_off + right.1)) {
-                cell.set_char('▌').set_fg(Color::White);
-            }
-            //below
-            if let Some(cell) = buf.cell_mut(Position::new(x_off + below.0, y_off + below.1)) {
+        }
+
+        // west
+        if px > 0 {
+            if let Some(cell) = buf.cell_mut(Position::new(x_off + px - 1, y_off + ty)) {
+                cell.set_char('▐');
                 cell.fg = Color::White;
             }
-        };
-        let (select_x, select_y) = (self.cursor.x, self.cursor.y);
+        }
 
-        info!(
-            "terminal ({select_x}, {select_y}) = pixel rows {}–{}",
-            select_y * 2,
-            select_y * 2 + 1
-        );
-
-        neighbor_render(select_x, select_y);
+        // east
+        if px + 1 < self.grid.width {
+            if let Some(cell) = buf.cell_mut(Position::new(x_off + px + 1, y_off + ty)) {
+                cell.set_char('▌');
+                cell.fg = Color::White;
+            }
+        }
     }
 }
