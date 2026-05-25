@@ -1,8 +1,5 @@
 use crate::app::{App, Route};
-use crossterm::event::{
-    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, ModifierKeyCode,
-};
-use log::info;
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use std::io;
 pub fn handle_events(app: &mut App) -> io::Result<()> {
     match read_event()? {

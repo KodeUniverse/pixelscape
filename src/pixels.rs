@@ -1,8 +1,14 @@
+use bincode::Encode;
+use bincode::config;
 use rand;
 use ratatui::style::Color;
 use std::fmt::Display;
+use std::fs;
+use std::io;
+use std::io::BufWriter;
+use std::path::Path;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Encode)]
 pub struct PixelColor {
     pub red: u8,
     pub green: u8,
@@ -56,6 +62,7 @@ impl From<PixelColor> for Color {
     }
 }
 
+#[derive(Encode)]
 pub struct Pixel {
     pub color: PixelColor,
     pub x: u16,
@@ -87,6 +94,7 @@ impl Default for Pixel {
     }
 }
 
+#[derive(Encode)]
 pub struct PixelGrid {
     pub width: u16,
     pub height: u16,
@@ -121,6 +129,23 @@ impl Default for PixelGrid {
     }
 }
 
+#[derive(Debug)]
+pub enum SaveError {
+    IO(io::Error),
+    Encode(bincode::error::EncodeError),
+}
+
+impl From<bincode::error::EncodeError> for SaveError {
+    fn from(e: bincode::error::EncodeError) -> Self {
+        SaveError::Encode(e)
+    }
+}
+impl From<io::Error> for SaveError {
+    fn from(e: io::Error) -> Self {
+        SaveError::IO(e)
+    }
+}
+
 impl PixelGrid {
     pub fn new(width: u16, height: u16) -> Self {
         let grid = (0..width)
@@ -138,15 +163,18 @@ impl PixelGrid {
             grid,
         }
     }
-
     pub fn get(&self, x: u16, y: u16) -> &Pixel {
         &self.grid[x as usize][y as usize]
     }
     pub fn get_mut(&mut self, x: u16, y: u16) -> &mut Pixel {
         &mut (self.grid[x as usize][y as usize])
     }
-    pub fn save_to_file() {
-        todo!();
+
+    pub fn save_to_file(&self, path: &Path) -> Result<(), SaveError> {
+        let buffer = fs::File::create_new(path)?;
+        let mut buf_writer = BufWriter::new(buffer);
+        bincode::encode_into_std_write(&self.grid, &mut buf_writer, config::standard())?;
+        Ok(())
     }
 }
 
