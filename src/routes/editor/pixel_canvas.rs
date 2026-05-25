@@ -98,7 +98,7 @@ impl Widget for &mut PixelCanvas {
             ((left_neighbor.color.blue as usize + right_neighbor.color.blue as usize) / 2)
                 .try_into()
                 .unwrap_or(255),
-            None,
+            false,
         );
         let cur_color: Color = Color::Rgb(
             255 - avg_neighbor_color.red,

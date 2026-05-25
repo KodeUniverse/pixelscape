@@ -33,7 +33,7 @@ fn handle_input_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
             app.editor.input.pop();
         }
         KeyCode::Enter => {
-            let filename = std::mem::take(&mut app.editor.input);
+            let mut filename = std::mem::take(&mut app.editor.input);
             let is_saving = app.editor.saving;
             let is_exporting = app.editor.exporting;
             app.editor.saving = false;
@@ -42,11 +42,13 @@ fn handle_input_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
 
             if !filename.is_empty() {
                 if is_saving {
+                    filename += ".pxsc";
                     let path = std::path::Path::new(&filename);
                     if let Err(e) = app.editor.canvas.grid.save_to_file(path) {
                         log::error!("Failed to save: {:?}", e);
                     }
                 } else if is_exporting {
+                    filename += ".png";
                     let path = std::path::Path::new(&filename);
                     if let Err(e) = app.editor.canvas.grid.export_to_png(path) {
                         log::error!("Failed to export: {:?}", e);

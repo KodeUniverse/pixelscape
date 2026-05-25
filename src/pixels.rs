@@ -6,6 +6,7 @@ use std::fmt::Display;
 use std::fs;
 use std::io;
 use std::io::BufWriter;
+use std::io::Write;
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, Encode)]
@@ -13,16 +14,16 @@ pub struct PixelColor {
     pub red: u8,
     pub green: u8,
     pub blue: u8,
-    pub opacity: Option<u8>,
+    pub transparent: bool,
 }
 
 impl PixelColor {
-    pub fn new(red: u8, green: u8, blue: u8, opacity: Option<u8>) -> Self {
+    pub fn new(red: u8, green: u8, blue: u8, transparent: bool) -> Self {
         Self {
             red,
             green,
             blue,
-            opacity,
+            transparent,
         }
     }
 
@@ -31,7 +32,7 @@ impl PixelColor {
             red: 255 - self.red,
             green: 255 - self.green,
             blue: 255 - self.blue,
-            opacity: self.opacity,
+            transparent: self.transparent,
         }
     }
 }
@@ -42,7 +43,7 @@ impl Default for PixelColor {
             red: 100,
             green: 200,
             blue: 100,
-            opacity: Some(1),
+            transparent: false,
         }
     }
 }
@@ -50,8 +51,8 @@ impl Display for PixelColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "rgb({}, {}, {}), opacity: {:?}",
-            self.red, self.green, self.blue, self.opacity
+            "rgb({}, {}, {}), transparent: {}",
+            self.red, self.green, self.blue, self.transparent
         )
     }
 }
@@ -68,6 +69,7 @@ pub struct Pixel {
     pub x: u16,
     pub y: u16,
 }
+
 impl Pixel {
     pub fn new(x: u16, y: u16, color: PixelColor) -> Self {
         Self { x, y, color }
@@ -113,7 +115,12 @@ impl Default for PixelGrid {
                         Pixel::new(
                             x,
                             y,
-                            PixelColor::new(rand::random(), rand::random(), rand::random(), None),
+                            PixelColor::new(
+                                rand::random(),
+                                rand::random(),
+                                rand::random(),
+                                rand::random_bool(2f64 / 3f64),
+                            ),
                         )
                     })
                     .collect()
@@ -134,6 +141,12 @@ pub enum SaveError {
     IO(io::Error),
     Encode(bincode::error::EncodeError),
     Image(image::ImageError),
+}
+
+#[derive(Debug)]
+pub enum GridReadError {
+    IO(io::Error),
+    Decode(bincode::error::DecodeError),
 }
 
 impl From<bincode::error::EncodeError> for SaveError {
@@ -179,14 +192,20 @@ impl PixelGrid {
     pub fn save_to_file(&self, path: &Path) -> Result<(), SaveError> {
         let buffer = fs::File::create_new(path)?;
         let mut buf_writer = BufWriter::new(buffer);
-        bincode::encode_into_std_write(&self.grid, &mut buf_writer, config::standard())?;
+
+        const MAGIC: &[u8] = b"PIXELSCAPE_FILE_FORMAT";
+        buf_writer.write_all(MAGIC)?;
+        bincode::encode_into_std_write(&self, &mut buf_writer, config::standard())?;
         Ok(())
     }
-
+    pub fn read_from_file(&self, path: &Path) -> Result<(), GridReadError> {
+        todo!();
+        Ok(())
+    }
     pub fn export_to_png(&self, path: &Path) -> Result<(), SaveError> {
         let width = self.width as u32;
         let height = self.height as u32;
-        let mut img = image::RgbImage::new(width, height);
+        let mut img = image::RgbaImage::new(width, height);
 
         for x in 0..self.width {
             for y in 0..self.height {
@@ -194,7 +213,12 @@ impl PixelGrid {
                 img.put_pixel(
                     x as u32,
                     y as u32,
-                    image::Rgb([pixel.color.red, pixel.color.green, pixel.color.blue]),
+                    image::Rgba([
+                        pixel.color.red,
+                        pixel.color.green,
+                        pixel.color.blue,
+                        if pixel.color.transparent { 0 } else { 255 },
+                    ]),
                 );
             }
         }
@@ -217,7 +241,7 @@ mod tests {
     #[test]
     fn modify_pixel() {
         let mut px_grid = PixelGrid::new(4, 4);
-        *px_grid.get_mut(0, 2) = Pixel::new(0, 2, PixelColor::new(255, 255, 255, None));
+        *px_grid.get_mut(0, 2) = Pixel::new(0, 2, PixelColor::new(255, 255, 255, false));
         let pixel = px_grid.get(0, 2);
         println!("{}", pixel);
     }
