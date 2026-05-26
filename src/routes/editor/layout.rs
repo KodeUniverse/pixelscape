@@ -2,7 +2,9 @@ use std::path::Path;
 
 use crate::app::EventMode;
 use crate::pixels::PixelGrid;
-use crate::routes::editor::color_palette::{ColorPaletteGrid, PaletteGridBlock, PaletteGridState};
+use crate::routes::editor::color_palette::{
+    ColorPalette, ColorPaletteGrid, PaletteGridBlock, PaletteGridState,
+};
 use crate::routes::editor::pixel_canvas::PixelCanvas;
 use rand::random_range;
 use ratatui::buffer::Buffer;
@@ -85,17 +87,11 @@ impl Widget for &mut Editor {
             let palette_card_inner = palette_card.inner(left_panel_layout[0]);
             palette_card.render(left_panel_layout[0], buf);
 
-            let color_blocks = vec![
-                PaletteGridBlock::new(
-                    Color::Rgb(
-                        random_range(0..=255),
-                        random_range(0..=255),
-                        random_range(0..=255),
-                    ),
-                    3,
-                );
-                16
-            ];
+            let mut color_blocks = Vec::<PaletteGridBlock>::new();
+            ColorPalette::default()
+                .colors
+                .iter()
+                .for_each(|color| color_blocks.push(PaletteGridBlock::new(*color, 3)));
 
             let palette_state = PaletteGridState::default();
             let color_palette = ColorPaletteGrid::new(color_blocks, 1, palette_state);
