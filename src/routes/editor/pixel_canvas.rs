@@ -23,6 +23,14 @@ impl PixelCanvas {
             cursor: Cursor { x: 0, y: 0 },
         }
     }
+
+    pub fn from_grid(grid: PixelGrid) -> Self {
+        Self {
+            grid,
+            cursor: Cursor { x: 0, y: 0 },
+        }
+    }
+
     pub fn move_select_up(&mut self, by: u16) {
         self.cursor.y = self.cursor.y.saturating_sub(by);
     }
@@ -98,7 +106,7 @@ impl Widget for &mut PixelCanvas {
             ((left_neighbor.color.blue as usize + right_neighbor.color.blue as usize) / 2)
                 .try_into()
                 .unwrap_or(255),
-            None,
+            false,
         );
         let cur_color: Color = Color::Rgb(
             255 - avg_neighbor_color.red,
