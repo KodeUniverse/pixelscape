@@ -1,15 +1,22 @@
+use bincode::BorrowDecode;
+use bincode::Decode;
 use bincode::Encode;
 use bincode::config;
+use bincode::decode_from_std_read;
 use rand;
 use ratatui::style::Color;
 use std::fmt::Display;
 use std::fs;
+use std::fs::File;
 use std::io;
+use std::io::BufReader;
 use std::io::BufWriter;
+use std::io::Error;
+use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 
-#[derive(Debug, Clone, Copy, Encode)]
+#[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PixelColor {
     pub red: u8,
     pub green: u8,
@@ -63,7 +70,7 @@ impl From<PixelColor> for Color {
     }
 }
 
-#[derive(Encode)]
+#[derive(Encode, Decode)]
 pub struct Pixel {
     pub color: PixelColor,
     pub x: u16,
@@ -96,7 +103,7 @@ impl Default for Pixel {
     }
 }
 
-#[derive(Encode)]
+#[derive(Encode, Decode)]
 pub struct PixelGrid {
     pub width: u16,
     pub height: u16,
@@ -137,35 +144,48 @@ impl Default for PixelGrid {
 }
 
 #[derive(Debug)]
-pub enum SaveError {
+pub enum GridSaveError {
     IO(io::Error),
     Encode(bincode::error::EncodeError),
     Image(image::ImageError),
+}
+
+impl From<bincode::error::EncodeError> for GridSaveError {
+    fn from(e: bincode::error::EncodeError) -> Self {
+        GridSaveError::Encode(e)
+    }
+}
+impl From<io::Error> for GridSaveError {
+    fn from(e: io::Error) -> Self {
+        GridSaveError::IO(e)
+    }
+}
+impl From<image::ImageError> for GridSaveError {
+    fn from(e: image::ImageError) -> Self {
+        GridSaveError::Image(e)
+    }
 }
 
 #[derive(Debug)]
 pub enum GridReadError {
     IO(io::Error),
     Decode(bincode::error::DecodeError),
+    MagicByte,
 }
 
-impl From<bincode::error::EncodeError> for SaveError {
-    fn from(e: bincode::error::EncodeError) -> Self {
-        SaveError::Encode(e)
+impl From<bincode::error::DecodeError> for GridReadError {
+    fn from(e: bincode::error::DecodeError) -> Self {
+        Self::Decode(e)
     }
 }
-impl From<io::Error> for SaveError {
+impl From<io::Error> for GridReadError {
     fn from(e: io::Error) -> Self {
-        SaveError::IO(e)
+        Self::IO(e)
     }
 }
-impl From<image::ImageError> for SaveError {
-    fn from(e: image::ImageError) -> Self {
-        SaveError::Image(e)
-    }
-}
-
 impl PixelGrid {
+    const MAGIC: &[u8] = b"PIXELSCAPE_FILE_FORMAT";
+
     pub fn new(width: u16, height: u16) -> Self {
         let grid = (0..width)
             .map(|x| {
@@ -189,20 +209,28 @@ impl PixelGrid {
         &mut (self.grid[x as usize][y as usize])
     }
 
-    pub fn save_to_file(&self, path: &Path) -> Result<(), SaveError> {
+    pub fn save_to_file(&self, path: &Path) -> Result<(), GridSaveError> {
         let buffer = fs::File::create_new(path)?;
         let mut buf_writer = BufWriter::new(buffer);
 
-        const MAGIC: &[u8] = b"PIXELSCAPE_FILE_FORMAT";
-        buf_writer.write_all(MAGIC)?;
+        buf_writer.write_all(Self::MAGIC)?;
         bincode::encode_into_std_write(&self, &mut buf_writer, config::standard())?;
         Ok(())
     }
-    pub fn read_from_file(&mut self, path: &Path) -> Result<(), GridReadError> {
-        todo!();
-        Ok(())
+    pub fn read_from_file(&self, path: &Path) -> Result<PixelGrid, GridReadError> {
+        let buffer = File::open(path)?;
+        let mut buf_reader = BufReader::new(buffer);
+        let mut magic = [0u8; Self::MAGIC.len()];
+        buf_reader.read_exact(&mut magic)?;
+
+        if magic != Self::MAGIC {
+            return Err(GridReadError::MagicByte);
+        }
+
+        let decoded: Self = bincode::decode_from_std_read(&mut buf_reader, config::standard())?;
+        Ok(decoded)
     }
-    pub fn export_to_png(&self, path: &Path) -> Result<(), SaveError> {
+    pub fn export_to_png(&self, path: &Path) -> Result<(), GridSaveError> {
         let width = self.width as u32;
         let height = self.height as u32;
         let mut img = image::RgbaImage::new(width, height);
