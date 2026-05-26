@@ -2,10 +2,13 @@ use std::path::Path;
 
 use crate::app::EventMode;
 use crate::pixels::PixelGrid;
+use crate::routes::editor::color_palette::{ColorPaletteGrid, PaletteGridBlock, PaletteGridState};
 use crate::routes::editor::pixel_canvas::PixelCanvas;
+use rand::random_range;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, HorizontalAlignment, Layout, Rect};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Widget};
+use ratatui::style::Color;
+use ratatui::widgets::{Block, BorderType, Paragraph, Widget};
 
 pub struct Editor {
     pub canvas: PixelCanvas,
@@ -79,7 +82,24 @@ impl Widget for &mut Editor {
                 .title_top(" Brush Size ")
                 .title_alignment(HorizontalAlignment::Center);
             left_panel.render(areas[0], buf);
+            let palette_card_inner = palette_card.inner(left_panel_layout[0]);
             palette_card.render(left_panel_layout[0], buf);
+
+            let color_blocks = vec![
+                PaletteGridBlock::new(
+                    Color::Rgb(
+                        random_range(0..=255),
+                        random_range(0..=255),
+                        random_range(0..=255),
+                    ),
+                    3,
+                );
+                16
+            ];
+
+            let palette_state = PaletteGridState::default();
+            let color_palette = ColorPaletteGrid::new(color_blocks, 1, palette_state);
+            color_palette.render(palette_card_inner, buf);
             brush_size_card.render(left_panel_layout[1], buf);
 
             let right_panel = Block::default();
