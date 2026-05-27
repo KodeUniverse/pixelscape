@@ -1,4 +1,7 @@
 use crate::app::{App, EventMode, Route};
+
+use crate::pixels::PixelColor;
+use crate::routes::editor::color_palette::ColorPalette;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use std::io;
 
@@ -83,9 +86,29 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
             app.editor.input.clear();
         }
 
+        // Color and Pixel editing
+        KeyCode::Char(' ') => {
+            let (cur_x, cur_y) = (app.editor.canvas.cursor.x, app.editor.canvas.cursor.y);
+            let sel_pix = app.editor.canvas.grid.get_mut(cur_x, cur_y);
+            sel_pix.color = PixelColor::from(
+                ColorPalette::default().colors[app.editor.palette_selected_index as usize],
+            );
+        }
+
         // Escape events
         KeyCode::Esc if app.editor.saving => app.editor.saving = false,
         KeyCode::Esc if app.editor.exporting => app.editor.exporting = false,
+        KeyCode::Tab => {
+            let palette_len = ColorPalette::default().colors.len() as u8;
+            app.editor.palette_selected_index =
+                (app.editor.palette_selected_index + 1) % palette_len;
+        }
+        KeyCode::BackTab => {
+            let palette_len = ColorPalette::default().colors.len() as u8;
+            app.editor.palette_selected_index =
+                (app.editor.palette_selected_index + palette_len - 1) % palette_len;
+        }
+
         // Vim Keybindings
         KeyCode::Char('G') => {
             app.editor

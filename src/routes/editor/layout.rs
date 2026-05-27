@@ -6,10 +6,8 @@ use crate::routes::editor::color_palette::{
     ColorPalette, ColorPaletteGrid, PaletteGridBlock, PaletteGridState,
 };
 use crate::routes::editor::pixel_canvas::PixelCanvas;
-use rand::random_range;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, HorizontalAlignment, Layout, Rect};
-use ratatui::style::Color;
 use ratatui::widgets::{Block, BorderType, Paragraph, Widget};
 
 pub struct Editor {
@@ -18,6 +16,7 @@ pub struct Editor {
     pub exporting: bool,
     pub input: String,
     pub event_mode: EventMode,
+    pub palette_selected_index: u8,
 }
 impl Editor {
     pub fn start_with_file(file: &Path) -> Self {
@@ -29,6 +28,7 @@ impl Editor {
             exporting: false,
             input: String::default(),
             event_mode: EventMode::Normal,
+            palette_selected_index: 0,
         }
     }
 }
@@ -40,6 +40,7 @@ impl Default for Editor {
             exporting: false,
             input: String::default(),
             event_mode: EventMode::Normal,
+            palette_selected_index: 0,
         }
     }
 }
@@ -59,16 +60,16 @@ impl Widget for &mut Editor {
         let outer_layout =
             Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(inner);
         let inner_layout_def = Layout::horizontal([
-            Constraint::Percentage(20),
-            Constraint::Percentage(60),
-            Constraint::Percentage(20),
+            Constraint::Percentage(25),
+            Constraint::Percentage(50),
+            Constraint::Percentage(25),
         ]);
         let inner_layout = inner_layout_def.split(inner);
         let inner_layout_save = inner_layout_def.split(outer_layout[0]);
 
         let mut default_render = |areas: &[Rect], buf: &mut Buffer| {
             let left_panel_layout =
-                Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)])
+                Layout::vertical([Constraint::Percentage(87), Constraint::Percentage(13)])
                     .split(areas[0]);
             let right_panel_layout =
                 Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -91,9 +92,11 @@ impl Widget for &mut Editor {
             ColorPalette::default()
                 .colors
                 .iter()
-                .for_each(|color| color_blocks.push(PaletteGridBlock::new(*color, 3)));
+                .for_each(|px| color_blocks.push(PaletteGridBlock::new(*px, 3)));
 
-            let palette_state = PaletteGridState::default();
+            let palette_state = PaletteGridState {
+                selected: self.palette_selected_index,
+            };
             let color_palette = ColorPaletteGrid::new(color_blocks, 1, palette_state);
             color_palette.render(palette_card_inner, buf);
             brush_size_card.render(left_panel_layout[1], buf);

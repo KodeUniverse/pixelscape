@@ -63,7 +63,11 @@ impl Display for PixelColor {
 
 impl From<PixelColor> for Color {
     fn from(val: PixelColor) -> Self {
-        Color::Rgb(val.red, val.green, val.blue)
+        if !val.transparent {
+            Color::Rgb(val.red, val.green, val.blue)
+        } else {
+            Color::Reset
+        }
     }
 }
 
