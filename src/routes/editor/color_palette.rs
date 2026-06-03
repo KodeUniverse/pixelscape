@@ -61,15 +61,21 @@ impl Default for ColorPalette {
         }
     }
 }
+
 pub struct PaletteGridState {
     pub selected: u8,
+    pub secondary: u8,
 }
 
 impl Default for PaletteGridState {
     fn default() -> Self {
-        Self { selected: 0 }
+        Self {
+            selected: 0,
+            secondary: 0,
+        }
     }
 }
+
 pub struct ColorPaletteGrid {
     pub blocks: Vec<PaletteGridBlock>,
     pub gap: u8,
@@ -116,6 +122,58 @@ impl Widget for PaletteGridBlock {
     }
 }
 
+fn render_block_border(
+    buf: &mut Buffer,
+    base_x: u16,
+    base_y: u16,
+    bw: u16,
+    bh: u16,
+    border_color: Color,
+    block_color: PixelColor,
+    dashed: bool,
+) {
+    for row in 0..bh {
+        for col in 0..bw {
+            let is_edge = row == 0 || row == bh - 1 || col == 0 || col == bw - 1;
+            if !is_edge {
+                continue;
+            }
+
+            let skip = dashed && {
+                let on_top = row == 0;
+                let on_bottom = row == bh - 1;
+                let on_left = col == 0;
+                let on_right = col == bw - 1;
+
+                if (on_top || on_bottom) && !on_left && !on_right && col % 2 == 0 {
+                    true
+                } else if (on_left || on_right) && !on_top && !on_bottom && row % 2 == 0 {
+                    true
+                } else {
+                    false
+                }
+            };
+
+            if skip {
+                continue;
+            }
+
+            if let Some(cell) = buf.cell_mut(Position::new(base_x + col, base_y + row)) {
+                let (ch, fg, bg) = if (row == 0 || row == bh - 1) && (col == 0 || col == bw - 1) {
+                    ('█', border_color, border_color)
+                } else if row == 0 {
+                    ('▀', border_color, block_color.into())
+                } else if row == bh - 1 {
+                    ('▄', border_color, block_color.into())
+                } else {
+                    ('█', border_color, border_color)
+                };
+                cell.set_char(ch).set_fg(fg).set_bg(bg);
+            }
+        }
+    }
+}
+
 impl Widget for ColorPaletteGrid {
     fn render(self, area: Rect, buf: &mut Buffer)
     where
@@ -144,37 +202,34 @@ impl Widget for ColorPaletteGrid {
 
             let base_x = palette_area.x + col_idx * (bw as u16 + self.gap as u16);
             let base_y = palette_area.y + row_idx * (bh as u16 + self.gap as u16);
-            let is_selected = block_idx == self.state.selected as usize;
+
+            let is_primary = block_idx == self.state.selected as usize;
+            let is_secondary = block_idx == self.state.secondary as usize;
 
             for row in 0..bh {
                 for col in 0..bw {
                     if let Some(cell) =
                         buf.cell_mut(Position::new(base_x + col as u16, base_y + row as u16))
                     {
-                        // selection border rendering
-                        if is_selected && (row == 0 || row == bh - 1 || col == 0 || col == bw - 1) {
-                            let (ch, fg, bg) =
-                                // corners
-                                if (row == 0 || row == bh - 1) && (col == 0 || col == bw - 1) {
-                                    ('█', Color::White, Color::White)
-                                // top
-                                } else if row == 0 {
-                                    ('▀', Color::White, block.color.into())
-                                // bottom
-                                } else if row == bh - 1 {
-                                    ('▄', Color::White, block.color.into())
-                                // sides
-                                } else {
-                                    ('█', Color::White, Color::White)
-                                };
-                            cell.set_char(ch).set_fg(fg).set_bg(bg);
-                        } else {
-                            cell.set_char('▀')
-                                .set_fg(block.color.into())
-                                .set_bg(block.color.into());
-                        }
+                        cell.set_char('▀')
+                            .set_fg(block.color.into())
+                            .set_bg(block.color.into());
                     }
                 }
+            }
+
+            if is_primary {
+                render_block_border(
+                    buf, base_x, base_y, bw as u16, bh as u16,
+                    Color::White, block.color, false,
+                );
+            }
+
+            if is_secondary && !is_primary {
+                render_block_border(
+                    buf, base_x, base_y, bw as u16, bh as u16,
+                    Color::Blue, block.color, false,
+                );
             }
         }
     }

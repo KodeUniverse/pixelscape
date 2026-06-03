@@ -1,26 +1,148 @@
 use crate::app::{App, EventMode, Route};
-
-use crate::pixels::PixelColor;
-use crate::routes::editor::color_palette::ColorPalette;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crate::pixels::{Layer, Pixel, PixelColor, PixelGrid, ProjectFile, SerializedLayer};
+use crate::routes::editor::layout::BrushType;
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, MouseButton, MouseEventKind};
 use std::io;
 
 pub fn handle_events(app: &mut App) -> io::Result<()> {
     match read_event()? {
-        Some(event) => match app.route {
-            Route::Home => handle_home(app, event),
+        Some(Event::Mouse(me)) => {
+            if matches!(app.route, Route::Editor) {
+                handle_mouse_editor(app, me);
+            }
+            Ok(())
+        }
+        Some(Event::Key(key_event)) => match app.route {
+            Route::Home => handle_home(app, key_event),
             Route::Editor => match app.editor.event_mode {
-                EventMode::Normal => handle_editor(app, event),
-                EventMode::Input => handle_input_editor(app, event),
+                EventMode::Normal => handle_editor(app, key_event),
+                EventMode::Input => handle_input_editor(app, key_event),
             },
         },
         None => Ok(()),
+        _ => Ok(()),
     }
 }
-fn read_event() -> io::Result<Option<KeyEvent>> {
+
+fn read_event() -> io::Result<Option<Event>> {
     match event::read()? {
-        Event::Key(key_event) if key_event.kind == KeyEventKind::Press => Ok(Some(key_event)),
+        Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+            Ok(Some(Event::Key(key_event)))
+        }
+        Event::Mouse(me) => Ok(Some(Event::Mouse(me))),
         _ => Ok(None),
+    }
+}
+
+fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
+    let mx = me.column;
+    let my = me.row;
+
+    if let MouseEventKind::Down(btn) | MouseEventKind::Drag(btn) = me.kind {
+        // Check palette click/drag
+        if let Some(palette_area) = app.editor.palette_area {
+            if mx >= palette_area.x
+                && mx < palette_area.x + palette_area.width
+                && my >= palette_area.y
+                && my < palette_area.y + palette_area.height
+            {
+                let block_count = app.editor.palette_colors.len() as u16;
+                let bw: u16 = 6;
+                let bh: u16 = 3;
+                let gap: u16 = 1;
+                let blocks_per_row = (palette_area.width + gap) / (bw + gap);
+                if blocks_per_row == 0 {
+                    return;
+                }
+                let rel_x = mx - palette_area.x;
+                let rel_y = my - palette_area.y;
+                let col = rel_x / (bw + gap);
+                let row = rel_y / (bh + gap);
+                let index = row * blocks_per_row + col;
+                if index < block_count {
+                    match btn {
+                        MouseButton::Left => {
+                            app.editor.palette_primary_index = index as u8;
+                        }
+                        MouseButton::Right => {
+                            app.editor.palette_secondary_index = index as u8;
+                        }
+                        _ => {}
+                    }
+                }
+                return;
+            }
+        }
+
+        // Check brush type buttons
+        if let Some(area) = app.editor.brush_type_solid_area {
+            if mx >= area.x && mx < area.x + area.width && my == area.y {
+                if let MouseButton::Left = btn {
+                    app.editor.brush_type = BrushType::Solid;
+                }
+                return;
+            }
+        }
+        if let Some(area) = app.editor.brush_type_dither_area {
+            if mx >= area.x && mx < area.x + area.width && my == area.y {
+                if let MouseButton::Left = btn {
+                    app.editor.brush_type = BrushType::Dither;
+                }
+                return;
+            }
+        }
+
+        // Check brush size buttons
+        if let Some(area) = app.editor.brush_size_dec_area {
+            if mx >= area.x && mx < area.x + area.width && my == area.y {
+                if let MouseButton::Left = btn {
+                    app.editor.brush_size = app.editor.brush_size.saturating_sub(2).max(1);
+                }
+                return;
+            }
+        }
+        if let Some(area) = app.editor.brush_size_inc_area {
+            if mx >= area.x && mx < area.x + area.width && my == area.y {
+                if let MouseButton::Left = btn {
+                    app.editor.brush_size = (app.editor.brush_size + 2).min(21);
+                }
+                return;
+            }
+        }
+    }
+
+    // Check canvas click/drag — always update cursor on any mouse event over canvas
+    if let Some(canvas_area) = app.editor.canvas_area {
+        let w = app.editor.canvas.grid.width;
+        let h = app.editor.canvas.grid.height;
+        let terminal_rows = (h + 1) / 2;
+
+        if mx >= canvas_area.x
+            && mx < canvas_area.x + w
+            && my >= canvas_area.y
+            && my < canvas_area.y + terminal_rows
+        {
+            let px = mx - canvas_area.x;
+            let py = (my - canvas_area.y) * 2;
+
+            if px < w && py < h {
+                app.editor.canvas.cursor.x = px;
+                app.editor.canvas.cursor.y = py;
+
+                match me.kind {
+                    MouseEventKind::Down(MouseButton::Left)
+                    | MouseEventKind::Drag(MouseButton::Left) => {
+                        app.editor.paint_primary(px, py);
+                    }
+                    MouseEventKind::Down(MouseButton::Right)
+                    | MouseEventKind::Drag(MouseButton::Right) => {
+                        app.editor.paint_secondary(px, py);
+                    }
+                    _ => {}
+                }
+            }
+            return;
+        }
     }
 }
 
@@ -47,7 +169,16 @@ fn handle_input_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
                 if is_saving {
                     filename += ".pxsc";
                     let path = std::path::Path::new(&filename);
-                    if let Err(e) = app.editor.canvas.grid.save_to_file(path) {
+                    let serialized: Vec<SerializedLayer> = app
+                        .editor
+                        .layers
+                        .iter()
+                        .map(SerializedLayer::from)
+                        .collect();
+                    let project = ProjectFile {
+                        layers: serialized,
+                    };
+                    if let Err(e) = project.save_to_file(path) {
                         log::error!("Failed to save: {:?}", e);
                     }
                 } else if is_exporting {
@@ -55,6 +186,19 @@ fn handle_input_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
                     let path = std::path::Path::new(&filename);
                     if let Err(e) = app.editor.canvas.grid.export_to_png(path) {
                         log::error!("Failed to export: {:?}", e);
+                    }
+                } else {
+                    // Palette color edit
+                    let parts: Vec<&str> = filename.split(',').collect();
+                    if parts.len() == 3 {
+                        let r = parts[0].trim().parse::<u8>().unwrap_or(0);
+                        let g = parts[1].trim().parse::<u8>().unwrap_or(0);
+                        let b = parts[2].trim().parse::<u8>().unwrap_or(0);
+                        let idx = app.editor.palette_primary_index as usize;
+                        if idx < app.editor.palette_colors.len() {
+                            app.editor.palette_colors[idx] =
+                                PixelColor::new(r, g, b, false);
+                        }
                     }
                 }
             }
@@ -68,13 +212,41 @@ fn handle_input_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
 }
 
 fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
+    let (cx, cy) = (
+        app.editor.canvas.cursor.x,
+        app.editor.canvas.cursor.y,
+    );
+
     match key_event.code {
         KeyCode::Char('q') => app.exit(),
+
+        // Cursor movement
         KeyCode::Up => app.editor.canvas.move_select_up(1),
         KeyCode::Down => app.editor.canvas.move_select_down(1),
         KeyCode::Left => app.editor.canvas.move_select_left(1),
         KeyCode::Right => app.editor.canvas.move_select_right(1),
+        KeyCode::Char('G') => {
+            app.editor
+                .canvas
+                .move_select_down(app.editor.canvas.grid.height - 1);
+        }
 
+        // Paint
+        KeyCode::Char(' ') => {
+            app.editor.paint_primary(cx, cy);
+        }
+        KeyCode::Backspace => {
+            app.editor.paint_secondary(cx, cy);
+        }
+
+        // Erase
+        KeyCode::Char('x') => {
+            let layer = &mut app.editor.layers[app.editor.active_layer];
+            *layer.grid.get_mut(cx, cy) =
+                Pixel::new(cx, cy, PixelColor::new(0, 0, 0, true));
+        }
+
+        // Save / Export
         KeyCode::Char('S') => {
             app.editor.saving = true;
             app.editor.event_mode = EventMode::Input;
@@ -86,40 +258,95 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
             app.editor.input.clear();
         }
 
-        // Color and Pixel editing
-        KeyCode::Char(' ') => {
-            let (cur_x, cur_y) = (app.editor.canvas.cursor.x, app.editor.canvas.cursor.y);
-            let sel_pix = app.editor.canvas.grid.get_mut(cur_x, cur_y);
-            sel_pix.color = PixelColor::from(
-                ColorPalette::default().colors[app.editor.palette_selected_index as usize],
-            );
-        }
-
-        KeyCode::Char('x') => {
-            let (cur_x, cur_y) = (app.editor.canvas.cursor.x, app.editor.canvas.cursor.y);
-            let sel_pix = app.editor.canvas.grid.get_mut(cur_x, cur_y);
-            sel_pix.color = PixelColor::new(0, 0, 0, true);
-        }
-        // Escape events
-        KeyCode::Esc if app.editor.saving => app.editor.saving = false,
-        KeyCode::Esc if app.editor.exporting => app.editor.exporting = false,
+        // Palette selection
         KeyCode::Tab => {
-            let palette_len = ColorPalette::default().colors.len() as u8;
-            app.editor.palette_selected_index =
-                (app.editor.palette_selected_index + 1) % palette_len;
+            let len = app.editor.palette_colors.len() as u8;
+            app.editor.palette_primary_index =
+                (app.editor.palette_primary_index + 1) % len;
         }
         KeyCode::BackTab => {
-            let palette_len = ColorPalette::default().colors.len() as u8;
-            app.editor.palette_selected_index =
-                (app.editor.palette_selected_index + palette_len - 1) % palette_len;
+            let len = app.editor.palette_colors.len() as u8;
+            app.editor.palette_primary_index =
+                (app.editor.palette_primary_index + len - 1) % len;
         }
 
-        // Vim Keybindings
-        KeyCode::Char('G') => {
-            app.editor
-                .canvas
-                .move_select_down(app.editor.canvas.grid.height - 1);
+        // Swap primary/secondary
+        KeyCode::Char('Q') => {
+            let tmp = app.editor.palette_primary_index;
+            app.editor.palette_primary_index = app.editor.palette_secondary_index;
+            app.editor.palette_secondary_index = tmp;
         }
+
+        // Brush size
+        KeyCode::Char('=') => {
+            app.editor.brush_size = (app.editor.brush_size + 2).min(21);
+        }
+        KeyCode::Char('-') => {
+            app.editor.brush_size = app.editor.brush_size.saturating_sub(2).max(1);
+        }
+
+        // Brush type
+        KeyCode::Char('B') => {
+            app.editor.brush_type = match app.editor.brush_type {
+                BrushType::Solid => BrushType::Dither,
+                BrushType::Dither => BrushType::Solid,
+            };
+        }
+
+        // Fill
+        KeyCode::Char('F') => {
+            let primary = app.editor.palette_colors[app.editor.palette_primary_index as usize];
+            let layer = &mut app.editor.layers[app.editor.active_layer];
+            layer.grid.flood_fill(cx, cy, primary);
+        }
+
+        // Layers
+        KeyCode::Char('L') => {
+            let w = app.editor.canvas.grid.width;
+            let h = app.editor.canvas.grid.height;
+            let new_grid = PixelGrid::new_transparent(w, h);
+            let name = format!("Layer {}", app.editor.layers.len() + 1);
+            let layer = Layer::new(&name, new_grid);
+            app.editor.active_layer = app.editor.layers.len();
+            app.editor.layers.push(layer);
+        }
+        KeyCode::Delete => {
+            if app.editor.layers.len() > 1 && app.editor.active_layer < app.editor.layers.len() {
+                app.editor.layers.remove(app.editor.active_layer);
+                if app.editor.active_layer >= app.editor.layers.len() {
+                    app.editor.active_layer = app.editor.layers.len() - 1;
+                }
+            }
+        }
+        KeyCode::Char('[') => {
+            if app.editor.active_layer > 0 {
+                app.editor.active_layer -= 1;
+            }
+        }
+        KeyCode::Char(']') => {
+            if app.editor.active_layer + 1 < app.editor.layers.len() {
+                app.editor.active_layer += 1;
+            }
+        }
+        KeyCode::Char('V') => {
+            let layer = &mut app.editor.layers[app.editor.active_layer];
+            layer.visible = !layer.visible;
+        }
+
+        // Palette color edit
+        KeyCode::Char('E') => {
+            let idx = app.editor.palette_primary_index as usize;
+            let c = app.editor.palette_colors[idx];
+            app.editor.input = format!("{},{},{}", c.red, c.green, c.blue);
+            app.editor.saving = false;
+            app.editor.exporting = false;
+            app.editor.event_mode = EventMode::Input;
+        }
+
+        // Escape cancels
+        KeyCode::Esc if app.editor.saving => app.editor.saving = false,
+        KeyCode::Esc if app.editor.exporting => app.editor.exporting = false,
+
         _ => {}
     }
     Ok(())
@@ -136,12 +363,9 @@ fn handle_home(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
         }
         KeyCode::Enter => {
             let selection = app.home_list_state.selected_mut().unwrap_or(usize::MAX);
-
             match selection {
-                0 => app.route = Route::Editor, //create project,
-                1 => (),                        //existing
-                2 => (),                        //settings
-                _ => panic!(),                  // error
+                0 => app.route = Route::Editor,
+                _ => {}
             }
         }
         _ => {}
