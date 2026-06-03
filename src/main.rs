@@ -30,12 +30,20 @@ fn main() -> io::Result<()> {
     let args = Args::parse();
 
     ratatui::run(|terminal| {
-        execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
+        execute!(
+            std::io::stdout(),
+            crossterm::event::EnableMouseCapture,
+            crossterm::style::Print("\x1b[?1003h"),
+        )?;
         let result = match args.file {
             Some(ref path) => App::start_with_file(Path::new(path)).run(terminal),
             None => App::default().run(terminal),
         };
-        execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
+        execute!(
+            std::io::stdout(),
+            crossterm::style::Print("\x1b[?1003l"),
+            crossterm::event::DisableMouseCapture,
+        )?;
         result
     })?;
 

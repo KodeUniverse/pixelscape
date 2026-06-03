@@ -146,11 +146,10 @@ impl Widget for &mut PixelCanvas {
         }
 
         let px = self.cursor.x;
-        let py = self.cursor.y + 1;
-        let ty = py / 2;
-        let upper = py % 2 == 0;
+        let ty = self.cursor.y / 2;
+        let upper = self.cursor.y % 2 == 0;
 
-        info!("pixel ({px}, {py})  terminal ({px}, {ty})");
+        info!("pixel ({px}, {})  terminal ({px}, {ty})", self.cursor.y);
 
         let left_neighbor = self
             .grid
@@ -180,14 +179,24 @@ impl Widget for &mut PixelCanvas {
 
         let cell = buf.cell_mut(Position::new(
             x_off + px,
-            y_off + ty - if upper { 1 } else { 0 },
+            y_off + ty,
         ));
         if let Some(cell) = cell {
-            if upper {
-                cell.bg = cur_color;
+            let has_lower = self.cursor.y + 1 < self.grid.height;
+            let (fg, bg) = if upper {
+                let lc: Color = if has_lower {
+                    self.grid.get(px, self.cursor.y + 1).color.into()
+                } else {
+                    Color::Reset
+                };
+                (cur_color, lc)
             } else {
-                cell.fg = cur_color;
-            }
+                let uc: Color = self.grid.get(px, self.cursor.y).color.into();
+                (uc, cur_color)
+            };
+            cell.set_char('▀');
+            cell.fg = fg;
+            cell.bg = bg;
         }
     }
 }
@@ -235,9 +244,8 @@ impl PixelCanvas {
         }
 
         let px = self.cursor.x;
-        let py = self.cursor.y + 1;
-        let ty = py / 2;
-        let upper = py % 2 == 0;
+        let ty = self.cursor.y / 2;
+        let upper = self.cursor.y % 2 == 0;
 
         let left_neighbor = self
             .grid
@@ -267,14 +275,24 @@ impl PixelCanvas {
 
         let cell = buf.cell_mut(Position::new(
             x_off + px,
-            y_off + ty - if upper { 1 } else { 0 },
+            y_off + ty,
         ));
         if let Some(cell) = cell {
-            if upper {
-                cell.bg = cur_color;
+            let has_lower = self.cursor.y + 1 < self.grid.height;
+            let (fg, bg) = if upper {
+                let lc: Color = if has_lower {
+                    self.grid.get(px, self.cursor.y + 1).color.into()
+                } else {
+                    Color::Reset
+                };
+                (cur_color, lc)
             } else {
-                cell.fg = cur_color;
-            }
+                let uc: Color = self.grid.get(px, self.cursor.y).color.into();
+                (uc, cur_color)
+            };
+            cell.set_char('▀');
+            cell.fg = fg;
+            cell.bg = bg;
         }
 
         render_brush_preview(buf, &self.grid, &self.cursor, brush_size, x_off, y_off);

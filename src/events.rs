@@ -1,7 +1,9 @@
 use crate::app::{App, EventMode, Route};
-use crate::pixels::{Layer, Pixel, PixelColor, PixelGrid, ProjectFile, SerializedLayer};
+use crate::pixels::{Layer, PixelColor, PixelGrid, ProjectFile, SerializedLayer};
 use crate::routes::editor::layout::BrushType;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, MouseButton, MouseEventKind};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
+};
 use std::io;
 
 pub fn handle_events(app: &mut App) -> io::Result<()> {
@@ -38,80 +40,132 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
     let mx = me.column;
     let my = me.row;
 
-    if let MouseEventKind::Down(btn) | MouseEventKind::Drag(btn) = me.kind {
-        // Check palette click/drag
-        if let Some(palette_area) = app.editor.palette_area {
-            if mx >= palette_area.x
-                && mx < palette_area.x + palette_area.width
-                && my >= palette_area.y
-                && my < palette_area.y + palette_area.height
-            {
-                let block_count = app.editor.palette_colors.len() as u16;
-                let bw: u16 = 6;
-                let bh: u16 = 3;
-                let gap: u16 = 1;
-                let blocks_per_row = (palette_area.width + gap) / (bw + gap);
-                if blocks_per_row == 0 {
+    match me.kind {
+        MouseEventKind::Up(_) => {
+            app.editor.last_paint_pos = None;
+            app.editor.mouse_down = false;
+        }
+        MouseEventKind::Down(btn) | MouseEventKind::Drag(btn) => {
+            if matches!(me.kind, MouseEventKind::Down(_)) {
+                app.editor.mouse_down = true;
+            }
+            // Check palette click/drag
+            if let Some(palette_area) = app.editor.palette_area {
+                if mx >= palette_area.x
+                    && mx < palette_area.x + palette_area.width
+                    && my >= palette_area.y
+                    && my < palette_area.y + palette_area.height
+                {
+                    let block_count = app.editor.palette_colors.len() as u16;
+                    let bw: u16 = 6;
+                    let bh: u16 = 3;
+                    let gap: u16 = 1;
+                    let blocks_per_row = (palette_area.width + gap) / (bw + gap);
+                    if blocks_per_row == 0 {
+                        return;
+                    }
+                    let rel_x = mx - palette_area.x;
+                    let rel_y = my - palette_area.y;
+                    let col = rel_x / (bw + gap);
+                    let row = rel_y / (bh + gap);
+                    let index = row * blocks_per_row + col;
+                    if index < block_count {
+                        match btn {
+                            MouseButton::Left => {
+                                app.editor.palette_primary_index = index as u8;
+                            }
+                            MouseButton::Right => {
+                                app.editor.palette_secondary_index = index as u8;
+                            }
+                            _ => {}
+                        }
+                    }
                     return;
                 }
-                let rel_x = mx - palette_area.x;
-                let rel_y = my - palette_area.y;
-                let col = rel_x / (bw + gap);
-                let row = rel_y / (bh + gap);
-                let index = row * blocks_per_row + col;
-                if index < block_count {
-                    match btn {
-                        MouseButton::Left => {
-                            app.editor.palette_primary_index = index as u8;
+            }
+
+            // Check brush type buttons (+ Eraser)
+            if let Some(area) = app.editor.brush_type_solid_area {
+                if mx >= area.x && mx < area.x + area.width && my == area.y {
+                    if let MouseButton::Left = btn {
+                        app.editor.brush_type = BrushType::Solid;
+                    }
+                    return;
+                }
+            }
+            if let Some(area) = app.editor.brush_type_dither_area {
+                if mx >= area.x && mx < area.x + area.width && my == area.y {
+                    if let MouseButton::Left = btn {
+                        app.editor.brush_type = BrushType::Dither;
+                    }
+                    return;
+                }
+            }
+            if let Some(area) = app.editor.eraser_btn_area {
+                if mx >= area.x && mx < area.x + area.width && my == area.y {
+                    if let MouseButton::Left = btn {
+                        app.editor.brush_type = BrushType::Eraser;
+                    }
+                    return;
+                }
+            }
+
+            // Check brush slider
+            if let Some(area) = app.editor.brush_slider_area {
+                if mx >= area.x && mx < area.x + area.width && my == area.y {
+                    if let MouseButton::Left = btn {
+                        let rel_x = mx - area.x;
+                        let track_len = area.width;
+                        let value_idx = rel_x * 10 / (track_len - 1).max(1);
+                        let value_idx = value_idx.min(10);
+                        app.editor.brush_size = value_idx as u8 * 2 + 1;
+                    }
+                    return;
+                }
+            }
+
+            // Layer clicks - one-shot on Down only
+            if matches!(me.kind, MouseEventKind::Down(_)) {
+                if let Some(la) = app.editor.layers_card_area {
+                    let add_y = la.y + app.editor.layers.len() as u16 + 1;
+                    if my == add_y && mx >= la.x && mx < la.x + la.width {
+                        let w = app.editor.canvas.grid.width;
+                        let h = app.editor.canvas.grid.height;
+                        let new_grid = PixelGrid::new_transparent(w, h);
+                        let name = format!("Layer {}", app.editor.layers.len() + 1);
+                        let layer = Layer::new(&name, new_grid);
+                        app.editor.active_layer = app.editor.layers.len();
+                        app.editor.layers.push(layer);
+                        return;
+                    }
+                    for i in 0..app.editor.layers.len() as u16 {
+                        let ly = la.y + i;
+                        if my == ly && mx >= la.x && mx < la.x + la.width {
+                            if mx >= la.x && mx < la.x + 3 {
+                                app.editor.layers[i as usize].visible =
+                                    !app.editor.layers[i as usize].visible;
+                                return;
+                            }
+                            if mx == la.x + la.width - 1 {
+                                if app.editor.layers.len() > 1 {
+                                    app.editor.layers.remove(i as usize);
+                                    if app.editor.active_layer >= app.editor.layers.len() {
+                                        app.editor.active_layer = app.editor.layers.len() - 1;
+                                    }
+                                }
+                                return;
+                            }
+                            app.editor.active_layer = i as usize;
+                            return;
                         }
-                        MouseButton::Right => {
-                            app.editor.palette_secondary_index = index as u8;
-                        }
-                        _ => {}
                     }
                 }
-                return;
             }
         }
-
-        // Check brush type buttons
-        if let Some(area) = app.editor.brush_type_solid_area {
-            if mx >= area.x && mx < area.x + area.width && my == area.y {
-                if let MouseButton::Left = btn {
-                    app.editor.brush_type = BrushType::Solid;
-                }
-                return;
-            }
-        }
-        if let Some(area) = app.editor.brush_type_dither_area {
-            if mx >= area.x && mx < area.x + area.width && my == area.y {
-                if let MouseButton::Left = btn {
-                    app.editor.brush_type = BrushType::Dither;
-                }
-                return;
-            }
-        }
-
-        // Check brush size buttons
-        if let Some(area) = app.editor.brush_size_dec_area {
-            if mx >= area.x && mx < area.x + area.width && my == area.y {
-                if let MouseButton::Left = btn {
-                    app.editor.brush_size = app.editor.brush_size.saturating_sub(2).max(1);
-                }
-                return;
-            }
-        }
-        if let Some(area) = app.editor.brush_size_inc_area {
-            if mx >= area.x && mx < area.x + area.width && my == area.y {
-                if let MouseButton::Left = btn {
-                    app.editor.brush_size = (app.editor.brush_size + 2).min(21);
-                }
-                return;
-            }
-        }
+        _ => {}
     }
 
-    // Check canvas click/drag — always update cursor on any mouse event over canvas
+    // Canvas — always update cursor, paint on Down/Drag with line interpolation
     if let Some(canvas_area) = app.editor.canvas_area {
         let w = app.editor.canvas.grid.width;
         let h = app.editor.canvas.grid.height;
@@ -123,20 +177,39 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
             && my < canvas_area.y + terminal_rows
         {
             let px = mx - canvas_area.x;
-            let py = (my - canvas_area.y) * 2;
+            let mut py = (my - canvas_area.y) * 2;
+            if me.modifiers.contains(KeyModifiers::CONTROL) {
+                py = (py + 1).min(h - 1);
+            }
 
             if px < w && py < h {
                 app.editor.canvas.cursor.x = px;
                 app.editor.canvas.cursor.y = py;
 
                 match me.kind {
-                    MouseEventKind::Down(MouseButton::Left)
-                    | MouseEventKind::Drag(MouseButton::Left) => {
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        app.editor.last_paint_pos = Some((px, py));
                         app.editor.paint_primary(px, py);
                     }
-                    MouseEventKind::Down(MouseButton::Right)
-                    | MouseEventKind::Drag(MouseButton::Right) => {
+                    MouseEventKind::Drag(MouseButton::Left) => {
+                        if app.editor.mouse_down {
+                            if let Some((lx, ly)) = app.editor.last_paint_pos {
+                                app.editor.paint_line_primary(lx, ly, px, py);
+                            }
+                            app.editor.last_paint_pos = Some((px, py));
+                        }
+                    }
+                    MouseEventKind::Down(MouseButton::Right) => {
+                        app.editor.last_paint_pos = Some((px, py));
                         app.editor.paint_secondary(px, py);
+                    }
+                    MouseEventKind::Drag(MouseButton::Right) => {
+                        if app.editor.mouse_down {
+                            if let Some((lx, ly)) = app.editor.last_paint_pos {
+                                app.editor.paint_line_secondary(lx, ly, px, py);
+                            }
+                            app.editor.last_paint_pos = Some((px, py));
+                        }
                     }
                     _ => {}
                 }
@@ -241,9 +314,7 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
 
         // Erase
         KeyCode::Char('x') => {
-            let layer = &mut app.editor.layers[app.editor.active_layer];
-            *layer.grid.get_mut(cx, cy) =
-                Pixel::new(cx, cy, PixelColor::new(0, 0, 0, true));
+            app.editor.paint_erase(cx, cy);
         }
 
         // Save / Export
@@ -289,7 +360,8 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
         KeyCode::Char('B') => {
             app.editor.brush_type = match app.editor.brush_type {
                 BrushType::Solid => BrushType::Dither,
-                BrushType::Dither => BrushType::Solid,
+                BrushType::Dither => BrushType::Eraser,
+                BrushType::Eraser => BrushType::Solid,
             };
         }
 
