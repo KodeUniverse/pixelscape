@@ -43,31 +43,34 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
     match me.kind {
         MouseEventKind::Up(_) => {
             app.editor.last_paint_pos = None;
-            app.editor.mouse_down = false;
         }
         MouseEventKind::Down(btn) | MouseEventKind::Drag(btn) => {
-            if matches!(me.kind, MouseEventKind::Down(_)) {
-                app.editor.mouse_down = true;
-            }
             // Check palette click/drag
-            if let Some(palette_area) = app.editor.palette_area {
-                if mx >= palette_area.x
+            if let Some(palette_area) = app.editor.palette_area
+                && mx >= palette_area.x
                     && mx < palette_area.x + palette_area.width
                     && my >= palette_area.y
                     && my < palette_area.y + palette_area.height
                 {
+                    // Skip scrollbar column
+                    if mx == palette_area.x + palette_area.width - 1 {
+                        return;
+                    }
                     let block_count = app.editor.palette_colors.len() as u16;
                     let bw: u16 = 6;
                     let bh: u16 = 3;
                     let gap: u16 = 1;
-                    let blocks_per_row = (palette_area.width + gap) / (bw + gap);
+                    let blocks_per_row = ((palette_area.width + gap) / (bw + gap)).max(1);
                     if blocks_per_row == 0 {
                         return;
                     }
                     let rel_x = mx - palette_area.x;
                     let rel_y = my - palette_area.y;
                     let col = rel_x / (bw + gap);
-                    let row = rel_y / (bh + gap);
+                    if col >= blocks_per_row {
+                        return;
+                    }
+                    let row = rel_y / (bh + gap) + app.editor.palette_scroll;
                     let index = row * blocks_per_row + col;
                     if index < block_count {
                         match btn {
@@ -82,37 +85,40 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
                     }
                     return;
                 }
-            }
 
             // Check brush type buttons (+ Eraser)
-            if let Some(area) = app.editor.brush_type_solid_area {
-                if mx >= area.x && mx < area.x + area.width && my == area.y {
+            if let Some(area) = app.editor.brush_type_solid_area
+                && mx >= area.x && mx < area.x + area.width && my == area.y {
                     if let MouseButton::Left = btn {
                         app.editor.brush_type = BrushType::Solid;
                     }
                     return;
                 }
-            }
-            if let Some(area) = app.editor.brush_type_dither_area {
-                if mx >= area.x && mx < area.x + area.width && my == area.y {
+            if let Some(area) = app.editor.brush_type_dither_area
+                && mx >= area.x && mx < area.x + area.width && my == area.y {
                     if let MouseButton::Left = btn {
                         app.editor.brush_type = BrushType::Dither;
                     }
                     return;
                 }
-            }
-            if let Some(area) = app.editor.eraser_btn_area {
-                if mx >= area.x && mx < area.x + area.width && my == area.y {
+            if let Some(area) = app.editor.eraser_btn_area
+                && mx >= area.x && mx < area.x + area.width && my == area.y {
                     if let MouseButton::Left = btn {
                         app.editor.brush_type = BrushType::Eraser;
                     }
                     return;
                 }
-            }
+            if let Some(area) = app.editor.fill_btn_area
+                && mx >= area.x && mx < area.x + area.width && my == area.y {
+                    if let MouseButton::Left = btn {
+                        app.editor.brush_type = BrushType::Fill;
+                    }
+                    return;
+                }
 
             // Check brush slider
-            if let Some(area) = app.editor.brush_slider_area {
-                if mx >= area.x && mx < area.x + area.width && my == area.y {
+            if let Some(area) = app.editor.brush_slider_area
+                && mx >= area.x && mx < area.x + area.width && my == area.y {
                     if let MouseButton::Left = btn {
                         let rel_x = mx - area.x;
                         let track_len = area.width;
@@ -122,11 +128,10 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
                     }
                     return;
                 }
-            }
 
             // Layer clicks - one-shot on Down only
-            if matches!(me.kind, MouseEventKind::Down(_)) {
-                if let Some(la) = app.editor.layers_card_area {
+            if matches!(me.kind, MouseEventKind::Down(_))
+                && let Some(la) = app.editor.layers_card_area {
                     let add_y = la.y + app.editor.layers.len() as u16 + 1;
                     if my == add_y && mx >= la.x && mx < la.x + la.width {
                         let w = app.editor.canvas.grid.width;
@@ -160,16 +165,41 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
                         }
                     }
                 }
-            }
+        }
+        MouseEventKind::ScrollUp => {
+            if let Some(pa) = app.editor.palette_area
+                && mx >= pa.x && mx < pa.x + pa.width && my >= pa.y && my < pa.y + pa.height {
+                    if app.editor.palette_scroll > 0 {
+                        app.editor.palette_scroll -= 1;
+                    }
+                    return;
+                }
+        }
+        MouseEventKind::ScrollDown => {
+            if let Some(pa) = app.editor.palette_area
+                && mx >= pa.x && mx < pa.x + pa.width && my >= pa.y && my < pa.y + pa.height {
+                    let bw: u16 = 6;
+                    let bh: u16 = 3;
+                    let gap: u16 = 1;
+                    let blocks_per_row = ((pa.width + gap) / (bw + gap)).max(1);
+                    let total_rows =
+                        (app.editor.palette_colors.len() as u16).div_ceil(blocks_per_row);
+                    let visible_rows = pa.height / (bh + gap);
+                    let max_scroll = total_rows.saturating_sub(visible_rows);
+                    if app.editor.palette_scroll < max_scroll {
+                        app.editor.palette_scroll += 1;
+                    }
+                    return;
+                }
         }
         _ => {}
     }
 
-    // Canvas — always update cursor, paint on Down/Drag with line interpolation
+    // Canvas — update cursor, paint on Down/Drag with line interpolation
     if let Some(canvas_area) = app.editor.canvas_area {
         let w = app.editor.canvas.grid.width;
         let h = app.editor.canvas.grid.height;
-        let terminal_rows = (h + 1) / 2;
+        let terminal_rows = h.div_ceil(2);
 
         if mx >= canvas_area.x
             && mx < canvas_area.x + w
@@ -192,29 +222,24 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
                         app.editor.paint_primary(px, py);
                     }
                     MouseEventKind::Drag(MouseButton::Left) => {
-                        if app.editor.mouse_down {
-                            if let Some((lx, ly)) = app.editor.last_paint_pos {
-                                app.editor.paint_line_primary(lx, ly, px, py);
-                            }
-                            app.editor.last_paint_pos = Some((px, py));
+                        if let Some((lx, ly)) = app.editor.last_paint_pos {
+                            app.editor.paint_line_primary(lx, ly, px, py);
                         }
+                        app.editor.last_paint_pos = Some((px, py));
                     }
                     MouseEventKind::Down(MouseButton::Right) => {
                         app.editor.last_paint_pos = Some((px, py));
                         app.editor.paint_secondary(px, py);
                     }
                     MouseEventKind::Drag(MouseButton::Right) => {
-                        if app.editor.mouse_down {
-                            if let Some((lx, ly)) = app.editor.last_paint_pos {
-                                app.editor.paint_line_secondary(lx, ly, px, py);
-                            }
-                            app.editor.last_paint_pos = Some((px, py));
+                        if let Some((lx, ly)) = app.editor.last_paint_pos {
+                            app.editor.paint_line_secondary(lx, ly, px, py);
                         }
+                        app.editor.last_paint_pos = Some((px, py));
                     }
                     _ => {}
                 }
             }
-            return;
         }
     }
 }
@@ -248,9 +273,7 @@ fn handle_input_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
                         .iter()
                         .map(SerializedLayer::from)
                         .collect();
-                    let project = ProjectFile {
-                        layers: serialized,
-                    };
+                    let project = ProjectFile { layers: serialized };
                     if let Err(e) = project.save_to_file(path) {
                         log::error!("Failed to save: {:?}", e);
                     }
@@ -269,8 +292,7 @@ fn handle_input_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
                         let b = parts[2].trim().parse::<u8>().unwrap_or(0);
                         let idx = app.editor.palette_primary_index as usize;
                         if idx < app.editor.palette_colors.len() {
-                            app.editor.palette_colors[idx] =
-                                PixelColor::new(r, g, b, false);
+                            app.editor.palette_colors[idx] = PixelColor::new(r, g, b, false);
                         }
                     }
                 }
@@ -285,10 +307,7 @@ fn handle_input_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
 }
 
 fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
-    let (cx, cy) = (
-        app.editor.canvas.cursor.x,
-        app.editor.canvas.cursor.y,
-    );
+    let (cx, cy) = (app.editor.canvas.cursor.x, app.editor.canvas.cursor.y);
 
     match key_event.code {
         KeyCode::Char('q') => app.exit(),
@@ -332,20 +351,16 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
         // Palette selection
         KeyCode::Tab => {
             let len = app.editor.palette_colors.len() as u8;
-            app.editor.palette_primary_index =
-                (app.editor.palette_primary_index + 1) % len;
+            app.editor.palette_primary_index = (app.editor.palette_primary_index + 1) % len;
         }
         KeyCode::BackTab => {
             let len = app.editor.palette_colors.len() as u8;
-            app.editor.palette_primary_index =
-                (app.editor.palette_primary_index + len - 1) % len;
+            app.editor.palette_primary_index = (app.editor.palette_primary_index + len - 1) % len;
         }
 
         // Swap primary/secondary
         KeyCode::Char('Q') => {
-            let tmp = app.editor.palette_primary_index;
-            app.editor.palette_primary_index = app.editor.palette_secondary_index;
-            app.editor.palette_secondary_index = tmp;
+            std::mem::swap(&mut app.editor.palette_primary_index, &mut app.editor.palette_secondary_index);
         }
 
         // Brush size
@@ -361,17 +376,10 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
             app.editor.brush_type = match app.editor.brush_type {
                 BrushType::Solid => BrushType::Dither,
                 BrushType::Dither => BrushType::Eraser,
-                BrushType::Eraser => BrushType::Solid,
+                BrushType::Eraser => BrushType::Fill,
+                BrushType::Fill => BrushType::Solid,
             };
         }
-
-        // Fill
-        KeyCode::Char('F') => {
-            let primary = app.editor.palette_colors[app.editor.palette_primary_index as usize];
-            let layer = &mut app.editor.layers[app.editor.active_layer];
-            layer.grid.flood_fill(cx, cy, primary);
-        }
-
         // Layers
         KeyCode::Char('L') => {
             let w = app.editor.canvas.grid.width;
@@ -382,24 +390,21 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
             app.editor.active_layer = app.editor.layers.len();
             app.editor.layers.push(layer);
         }
-        KeyCode::Delete => {
-            if app.editor.layers.len() > 1 && app.editor.active_layer < app.editor.layers.len() {
+        KeyCode::Delete
+            if app.editor.layers.len() > 1 && app.editor.active_layer < app.editor.layers.len() => {
                 app.editor.layers.remove(app.editor.active_layer);
                 if app.editor.active_layer >= app.editor.layers.len() {
                     app.editor.active_layer = app.editor.layers.len() - 1;
                 }
             }
-        }
-        KeyCode::Char('[') => {
-            if app.editor.active_layer > 0 {
+        KeyCode::Char('[')
+            if app.editor.active_layer > 0 => {
                 app.editor.active_layer -= 1;
             }
-        }
-        KeyCode::Char(']') => {
-            if app.editor.active_layer + 1 < app.editor.layers.len() {
+        KeyCode::Char(']')
+            if app.editor.active_layer + 1 < app.editor.layers.len() => {
                 app.editor.active_layer += 1;
             }
-        }
         KeyCode::Char('V') => {
             let layer = &mut app.editor.layers[app.editor.active_layer];
             layer.visible = !layer.visible;
@@ -435,10 +440,7 @@ fn handle_home(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
         }
         KeyCode::Enter => {
             let selection = app.home_list_state.selected_mut().unwrap_or(usize::MAX);
-            match selection {
-                0 => app.route = Route::Editor,
-                _ => {}
-            }
+            if selection == 0 { app.route = Route::Editor }
         }
         _ => {}
     }

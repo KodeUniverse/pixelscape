@@ -16,8 +16,8 @@ impl StatefulWidget for &Home {
     {
         let items = [
             ListItem::new("Create new project"),
-            ListItem::new("Open recent projects"),
-            ListItem::new("Settings"),
+            ListItem::new("Open existing project (WIP)"),
+            ListItem::new("Settings (WIP)"),
         ];
         let vert = Layout::vertical([Constraint::Fill(1), Constraint::Percentage(40)]).split(area);
         let block_slot = Rect::new(area.width / 2 - 25, vert[1].y, 50, 10);

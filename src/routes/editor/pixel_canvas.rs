@@ -71,14 +71,14 @@ fn render_brush_preview(
     let by_start = cursor.y.saturating_sub(half);
     let by_end = (cursor.y + half).min(grid.height - 1);
 
-    let rows = (grid.height + 1) / 2;
+    let rows = grid.height.div_ceil(2);
 
     for ty in 0..rows {
         let row_upper = ty as usize * 2;
         let row_lower = row_upper + 1;
 
         for tx in 0..grid.width {
-            let x = tx as u16;
+            let x = tx;
             let yu = row_upper as u16;
             let yl = row_lower as u16;
 
@@ -96,7 +96,7 @@ fn render_brush_preview(
                 continue;
             }
 
-            if let Some(cell) = buf.cell_mut(Position::new(x_off + x as u16, y_off + ty)) {
+            if let Some(cell) = buf.cell_mut(Position::new(x_off + x, y_off + ty)) {
                 if on_edge_upper {
                     cell.fg = Color::White;
                 }
@@ -110,7 +110,7 @@ fn render_brush_preview(
 
 impl Widget for &mut PixelCanvas {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let rows = (self.grid.height + 1) / 2;
+        let rows = self.grid.height.div_ceil(2);
         let cols = self.grid.width;
 
         let x_off = area.x + (area.width.saturating_sub(cols)) / 2;
@@ -120,12 +120,12 @@ impl Widget for &mut PixelCanvas {
             let row_upper = row as usize * 2;
             let row_lower = row_upper + 1;
             for col in 0..cols {
-                let upper_pixel = self.grid.get(col as u16, row_upper as u16);
+                let upper_pixel = self.grid.get(col, row_upper as u16);
                 let upper_color: Color = upper_pixel.color.into();
                 let upper_transparent = upper_pixel.color.transparent;
 
                 let (lower_color, lower_transparent) = if row_lower < self.grid.height as usize {
-                    let p = self.grid.get(col as u16, row_lower as u16);
+                    let p = self.grid.get(col, row_lower as u16);
                     (p.color.into(), p.color.transparent)
                 } else {
                     (Color::Reset, true)
@@ -147,7 +147,7 @@ impl Widget for &mut PixelCanvas {
 
         let px = self.cursor.x;
         let ty = self.cursor.y / 2;
-        let upper = self.cursor.y % 2 == 0;
+        let upper = self.cursor.y.is_multiple_of(2);
 
         info!("pixel ({px}, {})  terminal ({px}, {ty})", self.cursor.y);
 
@@ -208,7 +208,7 @@ impl PixelCanvas {
         buf: &mut Buffer,
         brush_size: u8,
     ) -> (u16, u16, u16, u16) {
-        let rows = (self.grid.height + 1) / 2;
+        let rows = self.grid.height.div_ceil(2);
         let cols = self.grid.width;
 
         let x_off = area.x + (area.width.saturating_sub(cols)) / 2;
@@ -218,12 +218,12 @@ impl PixelCanvas {
             let row_upper = row as usize * 2;
             let row_lower = row_upper + 1;
             for col in 0..cols {
-                let upper_pixel = self.grid.get(col as u16, row_upper as u16);
+                let upper_pixel = self.grid.get(col, row_upper as u16);
                 let upper_color: Color = upper_pixel.color.into();
                 let upper_transparent = upper_pixel.color.transparent;
 
                 let (lower_color, lower_transparent) = if row_lower < self.grid.height as usize {
-                    let p = self.grid.get(col as u16, row_lower as u16);
+                    let p = self.grid.get(col, row_lower as u16);
                     (p.color.into(), p.color.transparent)
                 } else {
                     (Color::Reset, true)
@@ -245,7 +245,7 @@ impl PixelCanvas {
 
         let px = self.cursor.x;
         let ty = self.cursor.y / 2;
-        let upper = self.cursor.y % 2 == 0;
+        let upper = self.cursor.y.is_multiple_of(2);
 
         let left_neighbor = self
             .grid

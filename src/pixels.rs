@@ -128,12 +128,12 @@ impl Pixel {
 }
 impl Clone for Pixel {
     fn clone(&self) -> Self {
-        Pixel::new(self.x, self.y, self.color.clone())
+        Pixel::new(self.x, self.y, self.color)
     }
 }
 impl Display for Pixel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Pixel:\nColor:\n{}", self.color.to_string())
+        write!(f, "Pixel:\nColor:\n{}", self.color)
     }
 }
 

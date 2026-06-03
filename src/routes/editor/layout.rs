@@ -16,6 +16,7 @@ pub enum BrushType {
     Solid,
     Dither,
     Eraser,
+    Fill,
 }
 
 impl BrushType {
@@ -24,6 +25,7 @@ impl BrushType {
             BrushType::Solid => "Solid",
             BrushType::Dither => "Dither",
             BrushType::Eraser => "Eraser",
+            BrushType::Fill => "Fill",
         }
     }
 }
@@ -41,6 +43,7 @@ pub struct Editor {
     pub palette_secondary_index: u8,
     pub brush_size: u8,
     pub brush_type: BrushType,
+    pub palette_scroll: u16,
     pub canvas_area: Option<Rect>,
     pub palette_area: Option<Rect>,
     pub brush_area: Option<Rect>,
@@ -48,8 +51,8 @@ pub struct Editor {
     pub brush_type_dither_area: Option<Rect>,
     pub brush_slider_area: Option<Rect>,
     pub last_paint_pos: Option<(u16, u16)>,
-    pub mouse_down: bool,
     pub eraser_btn_area: Option<Rect>,
+    pub fill_btn_area: Option<Rect>,
     pub layers_card_area: Option<Rect>,
     pub layer_add_area: Option<Rect>,
 }
@@ -75,6 +78,7 @@ impl Editor {
             palette_secondary_index: 0,
             brush_size: 1,
             brush_type: BrushType::Solid,
+            palette_scroll: 0,
             canvas_area: None,
             palette_area: None,
             brush_area: None,
@@ -82,8 +86,8 @@ impl Editor {
             brush_type_dither_area: None,
             brush_slider_area: None,
             last_paint_pos: None,
-            mouse_down: false,
             eraser_btn_area: None,
+            fill_btn_area: None,
             layers_card_area: None,
             layer_add_area: None,
         }
@@ -105,6 +109,10 @@ impl Editor {
 
     fn paint(&mut self, cx: u16, cy: u16, color: PixelColor) {
         let layer = &mut self.layers[self.active_layer];
+        if self.brush_type == BrushType::Fill {
+            layer.grid.flood_fill(cx, cy, color);
+            return;
+        }
         let w = layer.grid.width;
         let h = layer.grid.height;
         let half = self.brush_size as u16 / 2;
@@ -217,7 +225,7 @@ impl Default for Editor {
         let h = canvas.grid.height;
         let grid = PixelGrid::new_transparent(w, h);
         let layer = Layer::new("Layer 1", grid);
-        let composite = composite_layers(&[layer.clone()]);
+        let composite = composite_layers(std::slice::from_ref(&layer));
         let palette = ColorPalette::default();
         Self {
             canvas: PixelCanvas::from_grid(composite),
@@ -232,6 +240,7 @@ impl Default for Editor {
             palette_secondary_index: 0,
             brush_size: 1,
             brush_type: BrushType::Solid,
+            palette_scroll: 0,
             canvas_area: None,
             palette_area: None,
             brush_area: None,
@@ -239,8 +248,8 @@ impl Default for Editor {
             brush_type_dither_area: None,
             brush_slider_area: None,
             last_paint_pos: None,
-            mouse_down: false,
             eraser_btn_area: None,
+            fill_btn_area: None,
             layers_card_area: None,
             layer_add_area: None,
         }
@@ -308,6 +317,7 @@ impl Widget for &mut Editor {
             let palette_state = PaletteGridState {
                 selected: self.palette_primary_index,
                 secondary: self.palette_secondary_index,
+                scroll: self.palette_scroll,
             };
             let color_palette = ColorPaletteGrid::new(color_blocks, 1, palette_state);
             color_palette.render(palette_card_inner, buf);
@@ -324,12 +334,14 @@ impl Widget for &mut Editor {
 
             self.brush_area = Some(brush_card_inner);
 
-            // Type buttons + Eraser
+            // Type buttons + Eraser + Fill
             let type_y = brush_card_inner.y;
             let solid_label = "[Solid]";
             let dither_label = "[Dither]";
             let eraser_label = "[Eraser]";
-            let total_btn_w = solid_label.len() + dither_label.len() + eraser_label.len() + 2;
+            let fill_label = "[Fill]";
+            let total_btn_w =
+                solid_label.len() + dither_label.len() + eraser_label.len() + fill_label.len() + 3;
             let btn_x = brush_card_inner.x
                 + (brush_card_inner.width.saturating_sub(total_btn_w as u16)) / 2;
 
@@ -347,6 +359,11 @@ impl Widget for &mut Editor {
             let eraser_active = matches!(self.brush_type, BrushType::Eraser);
             render_button(buf, ex, type_y, eraser_label, eraser_active);
             self.eraser_btn_area = Some(Rect::new(ex, type_y, eraser_label.len() as u16, 1));
+
+            let fx = ex + eraser_label.len() as u16 + 1;
+            let fill_active = matches!(self.brush_type, BrushType::Fill);
+            render_button(buf, fx, type_y, fill_label, fill_active);
+            self.fill_btn_area = Some(Rect::new(fx, type_y, fill_label.len() as u16, 1));
 
             // Size slider
             let slider_y = type_y + 1;
@@ -418,7 +435,6 @@ impl Widget for &mut Editor {
                 ("Space", "Paint primary"),
                 ("BckSp", "Paint secondary"),
                 ("x", "Erase"),
-                ("F", "Fill"),
                 ("B", "Brush type"),
                 ("+/-", "Brush size"),
                 ("L", "New layer"),

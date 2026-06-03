@@ -30,7 +30,7 @@ impl Default for App {
     fn default() -> Self {
         let mut app = Self {
             route: Route::Home,
-            home: home::Home::default(),
+            home: home::Home,
             editor: editor::layout::Editor::default(),
             home_list_state: ListState::default(),
             exit: false,
@@ -44,7 +44,7 @@ impl App {
     pub fn start_with_file(file: &Path) -> Self {
         Self {
             route: Route::Editor,
-            home: home::Home::default(),
+            home: home::Home,
             editor: editor::layout::Editor::start_with_file(file),
             home_list_state: ListState::default(),
             exit: false,
