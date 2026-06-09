@@ -1,5 +1,6 @@
 # PIXELSCAPE
 An interactive terminal app for creating, editing, and saving pixel art. Built with Rust and ratatui.
+![Editor Screenshot](https://github.com/KodeUniverse/pixelscape/blob/main/screenshots/pixelscape-preview.png)
 
 ## Todo/Features in Roadmap:
 - Finish main color editing functionality
