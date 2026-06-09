@@ -1,7 +1,6 @@
 use bincode::Decode;
 use bincode::Encode;
 use bincode::config;
-use rand;
 use ratatui::style::Color;
 use std::fmt::Display;
 use std::fs;
@@ -13,7 +12,51 @@ use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 
-#[derive(Debug, Clone, Copy, Encode, Decode)]
+#[derive(Debug, Clone)]
+pub struct Layer {
+    pub name: String,
+    pub visible: bool,
+    pub grid: PixelGrid,
+}
+
+impl Layer {
+    pub fn new(name: &str, grid: PixelGrid) -> Self {
+        Self {
+            name: name.to_string(),
+            visible: true,
+            grid,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SerializedLayer {
+    pub name: String,
+    pub visible: bool,
+    pub grid: PixelGrid,
+}
+
+impl From<&Layer> for SerializedLayer {
+    fn from(layer: &Layer) -> Self {
+        Self {
+            name: layer.name.clone(),
+            visible: layer.visible,
+            grid: layer.grid.clone(),
+        }
+    }
+}
+
+impl From<SerializedLayer> for Layer {
+    fn from(sl: SerializedLayer) -> Self {
+        Self {
+            name: sl.name,
+            visible: sl.visible,
+            grid: sl.grid,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
 pub struct PixelColor {
     pub red: u8,
     pub green: u8,
@@ -63,11 +106,15 @@ impl Display for PixelColor {
 
 impl From<PixelColor> for Color {
     fn from(val: PixelColor) -> Self {
-        Color::Rgb(val.red, val.green, val.blue)
+        if !val.transparent {
+            Color::Rgb(val.red, val.green, val.blue)
+        } else {
+            Color::Reset
+        }
     }
 }
 
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode, Default)]
 pub struct Pixel {
     pub color: PixelColor,
     pub x: u16,
@@ -81,26 +128,16 @@ impl Pixel {
 }
 impl Clone for Pixel {
     fn clone(&self) -> Self {
-        Pixel::new(self.x, self.y, self.color.clone())
+        Pixel::new(self.x, self.y, self.color)
     }
 }
 impl Display for Pixel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Pixel:\nColor:\n{}", self.color.to_string())
+        write!(f, "Pixel:\nColor:\n{}", self.color)
     }
 }
 
-impl Default for Pixel {
-    fn default() -> Self {
-        Self {
-            color: PixelColor::default(),
-            x: 0,
-            y: 0,
-        }
-    }
-}
-
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone)]
 pub struct PixelGrid {
     pub width: u16,
     pub height: u16,
@@ -115,18 +152,7 @@ impl Default for PixelGrid {
         let grid = (0..width)
             .map(|x| {
                 (0..height)
-                    .map(|y| {
-                        Pixel::new(
-                            x,
-                            y,
-                            PixelColor::new(
-                                rand::random(),
-                                rand::random(),
-                                rand::random(),
-                                rand::random_bool(2f64 / 3f64),
-                            ),
-                        )
-                    })
+                    .map(|y| Pixel::new(x, y, PixelColor::new(0, 0, 0, true)))
                     .collect()
             })
             .collect();
@@ -165,24 +191,22 @@ impl From<image::ImageError> for GridSaveError {
 
 #[derive(Debug)]
 pub enum GridReadError {
-    IO(io::Error),
-    Decode(bincode::error::DecodeError),
+    IO,
+    Decode,
     MagicByte,
 }
 
 impl From<bincode::error::DecodeError> for GridReadError {
-    fn from(e: bincode::error::DecodeError) -> Self {
-        Self::Decode(e)
+    fn from(_: bincode::error::DecodeError) -> Self {
+        Self::Decode
     }
 }
 impl From<io::Error> for GridReadError {
-    fn from(e: io::Error) -> Self {
-        Self::IO(e)
+    fn from(_: io::Error) -> Self {
+        Self::IO
     }
 }
 impl PixelGrid {
-    const MAGIC: &[u8] = b"PIXELSCAPE_FILE_FORMAT";
-
     pub fn new(width: u16, height: u16) -> Self {
         let grid = (0..width)
             .map(|x| {
@@ -199,6 +223,24 @@ impl PixelGrid {
             grid,
         }
     }
+
+    pub fn new_transparent(width: u16, height: u16) -> Self {
+        let grid = (0..width)
+            .map(|x| {
+                (0..height)
+                    .map(|y| Pixel::new(x, y, PixelColor::new(0, 0, 0, true)))
+                    .collect()
+            })
+            .collect();
+
+        Self {
+            width,
+            height,
+            pixel_count: (width as u32 * height as u32),
+            grid,
+        }
+    }
+
     pub fn get(&self, x: u16, y: u16) -> &Pixel {
         &self.grid[x as usize][y as usize]
     }
@@ -206,27 +248,40 @@ impl PixelGrid {
         &mut (self.grid[x as usize][y as usize])
     }
 
-    pub fn save_to_file(&self, path: &Path) -> Result<(), GridSaveError> {
-        let buffer = fs::File::create_new(path)?;
-        let mut buf_writer = BufWriter::new(buffer);
-
-        buf_writer.write_all(Self::MAGIC)?;
-        bincode::encode_into_std_write(&self, &mut buf_writer, config::standard())?;
-        Ok(())
-    }
-    pub fn read_from_file(path: &Path) -> Result<PixelGrid, GridReadError> {
-        let buffer = File::open(path)?;
-        let mut buf_reader = BufReader::new(buffer);
-        let mut magic = [0u8; Self::MAGIC.len()];
-        buf_reader.read_exact(&mut magic)?;
-
-        if magic != Self::MAGIC {
-            return Err(GridReadError::MagicByte);
+    pub fn flood_fill(&mut self, start_x: u16, start_y: u16, new_color: PixelColor) {
+        let target = self.grid[start_x as usize][start_y as usize].color;
+        if target == new_color {
+            return;
         }
 
-        let decoded: Self = bincode::decode_from_std_read(&mut buf_reader, config::standard())?;
-        Ok(decoded)
+        let w = self.width as usize;
+        let h = self.height as usize;
+        let mut stack = vec![(start_x as usize, start_y as usize)];
+
+        while let Some((x, y)) = stack.pop() {
+            if x >= w || y >= h {
+                continue;
+            }
+            if self.grid[x][y].color != target {
+                continue;
+            }
+            self.grid[x][y].color = new_color;
+
+            if x + 1 < w {
+                stack.push((x + 1, y));
+            }
+            if x > 0 {
+                stack.push((x - 1, y));
+            }
+            if y + 1 < h {
+                stack.push((x, y + 1));
+            }
+            if y > 0 {
+                stack.push((x, y - 1));
+            }
+        }
     }
+
     pub fn export_to_png(&self, path: &Path) -> Result<(), GridSaveError> {
         let width = self.width as u32;
         let height = self.height as u32;
@@ -250,6 +305,59 @@ impl PixelGrid {
 
         img.save(path)?;
         Ok(())
+    }
+}
+
+pub fn composite_layers(layers: &[Layer]) -> PixelGrid {
+    if layers.is_empty() {
+        return PixelGrid::new_transparent(64, 64);
+    }
+    let w = layers[0].grid.width;
+    let h = layers[0].grid.height;
+    let mut result = PixelGrid::new_transparent(w, h);
+
+    for layer in layers.iter() {
+        if !layer.visible {
+            continue;
+        }
+        for x in 0..w {
+            for y in 0..h {
+                let src = layer.grid.get(x, y);
+                if !src.color.transparent {
+                    *result.get_mut(x, y) = src.clone();
+                }
+            }
+        }
+    }
+    result
+}
+
+const MAGIC: &[u8] = b"PIXELSCAPE_FILE_FORMAT";
+
+#[derive(Encode, Decode)]
+pub struct ProjectFile {
+    pub layers: Vec<SerializedLayer>,
+}
+
+impl ProjectFile {
+    pub fn save_to_file(&self, path: &Path) -> Result<(), GridSaveError> {
+        let buffer = fs::File::create(path)?;
+        let mut buf_writer = BufWriter::new(buffer);
+        buf_writer.write_all(MAGIC)?;
+        bincode::encode_into_std_write(self, &mut buf_writer, config::standard())?;
+        Ok(())
+    }
+
+    pub fn read_from_file(path: &Path) -> Result<ProjectFile, GridReadError> {
+        let buffer = File::open(path)?;
+        let mut buf_reader = BufReader::new(buffer);
+        let mut magic = [0u8; MAGIC.len()];
+        buf_reader.read_exact(&mut magic)?;
+        if magic != MAGIC {
+            return Err(GridReadError::MagicByte);
+        }
+        let decoded: Self = bincode::decode_from_std_read(&mut buf_reader, config::standard())?;
+        Ok(decoded)
     }
 }
 

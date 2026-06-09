@@ -5,6 +5,7 @@ mod routes;
 
 use crate::app::App;
 use clap::Parser;
+use crossterm::execute;
 use log::{LevelFilter, info};
 use simplelog::{Config, WriteLogger};
 use std::path::Path;
@@ -27,12 +28,16 @@ fn main() -> io::Result<()> {
     }
 
     let args = Args::parse();
-    match args.file {
-        Some(path) => {
-            ratatui::run(|terminal| App::start_with_file(Path::new(&path)).run(terminal))?
-        }
-        None => ratatui::run(|terminal| App::default().run(terminal))?,
-    }
+
+    ratatui::run(|terminal| {
+        execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
+        let result = match args.file {
+            Some(ref path) => App::start_with_file(Path::new(path)).run(terminal),
+            None => App::default().run(terminal),
+        };
+        execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
+        result
+    })?;
 
     info!("Started tui app");
     Ok(())
