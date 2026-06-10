@@ -12,3 +12,4 @@ log = "0.4.29"
 ratatui = "0.30.0"
 simplelog = "0.12.2"
 tui-big-text = "0.8.4"
+

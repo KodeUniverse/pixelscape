@@ -18,15 +18,13 @@ struct Args {
 }
 
 fn main() -> io::Result<()> {
-    match WriteLogger::init(
-        LevelFilter::Info,
-        Config::default(),
-        File::create("logs/main.log")?,
-    ) {
+    let mut log_dir = std::env::temp_dir();
+    log_dir = log_dir.join("pixelscape/logs/main.log");
+
+    match WriteLogger::init(LevelFilter::Info, Config::default(), File::create(log_dir)?) {
         Ok(()) => (),
         Err(e) => panic!("ERROR: Failed to create logger: {e}."),
     }
-
     let args = Args::parse();
 
     ratatui::run(|terminal| {

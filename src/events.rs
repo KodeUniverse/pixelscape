@@ -397,7 +397,7 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
         }
 
         // Swap primary/secondary
-        KeyCode::Char('Q') => {
+        KeyCode::Char('q') => {
             std::mem::swap(
                 &mut app.editor.palette_primary_index,
                 &mut app.editor.palette_secondary_index,
