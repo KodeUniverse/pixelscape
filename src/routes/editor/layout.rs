@@ -11,6 +11,12 @@ use ratatui::layout::{Constraint, HorizontalAlignment, Layout, Margin, Position,
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, BorderType, Paragraph, Widget};
 
+#[derive(Clone)]
+pub struct HistoryEntry {
+    pub layers: Vec<Layer>,
+    pub active_layer: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BrushType {
     Solid,
@@ -55,6 +61,8 @@ pub struct Editor {
     pub fill_btn_area: Option<Rect>,
     pub layers_card_area: Option<Rect>,
     pub layer_add_area: Option<Rect>,
+    pub undo_stack: Vec<HistoryEntry>,
+    pub redo_stack: Vec<HistoryEntry>,
 }
 impl Editor {
     pub fn start_with_file(file: &Path) -> Self {
@@ -90,6 +98,8 @@ impl Editor {
             fill_btn_area: None,
             layers_card_area: None,
             layer_add_area: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 
@@ -217,6 +227,39 @@ impl Editor {
             }
         }
     }
+
+    pub fn push_history(&mut self) {
+        let entry = HistoryEntry {
+            layers: self.layers.clone(),
+            active_layer: self.active_layer,
+        };
+        self.undo_stack.push(entry);
+        self.redo_stack.clear();
+    }
+
+    pub fn undo(&mut self) {
+        if let Some(entry) = self.undo_stack.pop() {
+            let current = HistoryEntry {
+                layers: self.layers.clone(),
+                active_layer: self.active_layer,
+            };
+            self.redo_stack.push(current);
+            self.layers = entry.layers;
+            self.active_layer = entry.active_layer;
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if let Some(entry) = self.redo_stack.pop() {
+            let current = HistoryEntry {
+                layers: self.layers.clone(),
+                active_layer: self.active_layer,
+            };
+            self.undo_stack.push(current);
+            self.layers = entry.layers;
+            self.active_layer = entry.active_layer;
+        }
+    }
 }
 impl Default for Editor {
     fn default() -> Self {
@@ -252,6 +295,8 @@ impl Default for Editor {
             fill_btn_area: None,
             layers_card_area: None,
             layer_add_area: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 }
@@ -435,18 +480,19 @@ impl Widget for &mut Editor {
                 ("Space", "Paint primary"),
                 ("BckSp", "Paint secondary"),
                 ("x", "Erase"),
+                ("u / U", "Undo / Redo"),
                 ("B", "Brush type"),
                 ("+/-", "Brush size"),
                 ("L", "New layer"),
-                ("Del", "Del layer"),
-                ("[/]", "Cycle layer"),
+                ("Del", "Delete layer"),
+                ("[ / ]", "Cycle layer"),
                 ("V", "Toggle layer"),
                 ("E", "Edit color"),
                 ("Q", "Swap colors"),
                 ("Tab", "Next color"),
                 ("S", "Save"),
                 ("X", "Export PNG"),
-                ("q", "Quit"),
+                ("Q", "Quit"),
             ];
             let kb_style = Style::default().fg(Color::Gray);
             for (i, (key, desc)) in keybinds.iter().enumerate() {

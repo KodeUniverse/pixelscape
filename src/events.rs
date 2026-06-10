@@ -48,149 +48,174 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
             // Check palette click/drag
             if let Some(palette_area) = app.editor.palette_area
                 && mx >= palette_area.x
-                    && mx < palette_area.x + palette_area.width
-                    && my >= palette_area.y
-                    && my < palette_area.y + palette_area.height
-                {
-                    // Skip scrollbar column
-                    if mx == palette_area.x + palette_area.width - 1 {
-                        return;
-                    }
-                    let block_count = app.editor.palette_colors.len() as u16;
-                    let bw: u16 = 6;
-                    let bh: u16 = 3;
-                    let gap: u16 = 1;
-                    let blocks_per_row = ((palette_area.width + gap) / (bw + gap)).max(1);
-                    if blocks_per_row == 0 {
-                        return;
-                    }
-                    let rel_x = mx - palette_area.x;
-                    let rel_y = my - palette_area.y;
-                    let col = rel_x / (bw + gap);
-                    if col >= blocks_per_row {
-                        return;
-                    }
-                    let row = rel_y / (bh + gap) + app.editor.palette_scroll;
-                    let index = row * blocks_per_row + col;
-                    if index < block_count {
-                        match btn {
-                            MouseButton::Left => {
-                                app.editor.palette_primary_index = index as u8;
-                            }
-                            MouseButton::Right => {
-                                app.editor.palette_secondary_index = index as u8;
-                            }
-                            _ => {}
-                        }
-                    }
+                && mx < palette_area.x + palette_area.width
+                && my >= palette_area.y
+                && my < palette_area.y + palette_area.height
+            {
+                // Skip scrollbar column
+                if mx == palette_area.x + palette_area.width - 1 {
                     return;
                 }
+                let block_count = app.editor.palette_colors.len() as u16;
+                let bw: u16 = 6;
+                let bh: u16 = 3;
+                let gap: u16 = 1;
+                let blocks_per_row = ((palette_area.width + gap) / (bw + gap)).max(1);
+                if blocks_per_row == 0 {
+                    return;
+                }
+                let rel_x = mx - palette_area.x;
+                let rel_y = my - palette_area.y;
+                let col = rel_x / (bw + gap);
+                if col >= blocks_per_row {
+                    return;
+                }
+                let row = rel_y / (bh + gap) + app.editor.palette_scroll;
+                let index = row * blocks_per_row + col;
+                if index < block_count {
+                    match btn {
+                        MouseButton::Left => {
+                            app.editor.palette_primary_index = index as u8;
+                        }
+                        MouseButton::Right => {
+                            app.editor.palette_secondary_index = index as u8;
+                        }
+                        _ => {}
+                    }
+                }
+                return;
+            }
 
             // Check brush type buttons (+ Eraser)
             if let Some(area) = app.editor.brush_type_solid_area
-                && mx >= area.x && mx < area.x + area.width && my == area.y {
-                    if let MouseButton::Left = btn {
-                        app.editor.brush_type = BrushType::Solid;
-                    }
-                    return;
+                && mx >= area.x
+                && mx < area.x + area.width
+                && my == area.y
+            {
+                if let MouseButton::Left = btn {
+                    app.editor.brush_type = BrushType::Solid;
                 }
+                return;
+            }
             if let Some(area) = app.editor.brush_type_dither_area
-                && mx >= area.x && mx < area.x + area.width && my == area.y {
-                    if let MouseButton::Left = btn {
-                        app.editor.brush_type = BrushType::Dither;
-                    }
-                    return;
+                && mx >= area.x
+                && mx < area.x + area.width
+                && my == area.y
+            {
+                if let MouseButton::Left = btn {
+                    app.editor.brush_type = BrushType::Dither;
                 }
+                return;
+            }
             if let Some(area) = app.editor.eraser_btn_area
-                && mx >= area.x && mx < area.x + area.width && my == area.y {
-                    if let MouseButton::Left = btn {
-                        app.editor.brush_type = BrushType::Eraser;
-                    }
-                    return;
+                && mx >= area.x
+                && mx < area.x + area.width
+                && my == area.y
+            {
+                if let MouseButton::Left = btn {
+                    app.editor.brush_type = BrushType::Eraser;
                 }
+                return;
+            }
             if let Some(area) = app.editor.fill_btn_area
-                && mx >= area.x && mx < area.x + area.width && my == area.y {
-                    if let MouseButton::Left = btn {
-                        app.editor.brush_type = BrushType::Fill;
-                    }
-                    return;
+                && mx >= area.x
+                && mx < area.x + area.width
+                && my == area.y
+            {
+                if let MouseButton::Left = btn {
+                    app.editor.brush_type = BrushType::Fill;
                 }
+                return;
+            }
 
             // Check brush slider
             if let Some(area) = app.editor.brush_slider_area
-                && mx >= area.x && mx < area.x + area.width && my == area.y {
-                    if let MouseButton::Left = btn {
-                        let rel_x = mx - area.x;
-                        let track_len = area.width;
-                        let value_idx = rel_x * 10 / (track_len - 1).max(1);
-                        let value_idx = value_idx.min(10);
-                        app.editor.brush_size = value_idx as u8 * 2 + 1;
-                    }
-                    return;
+                && mx >= area.x
+                && mx < area.x + area.width
+                && my == area.y
+            {
+                if let MouseButton::Left = btn {
+                    let rel_x = mx - area.x;
+                    let track_len = area.width;
+                    let value_idx = rel_x * 10 / (track_len - 1).max(1);
+                    let value_idx = value_idx.min(10);
+                    app.editor.brush_size = value_idx as u8 * 2 + 1;
                 }
+                return;
+            }
 
             // Layer clicks - one-shot on Down only
             if matches!(me.kind, MouseEventKind::Down(_))
-                && let Some(la) = app.editor.layers_card_area {
-                    let add_y = la.y + app.editor.layers.len() as u16 + 1;
-                    if my == add_y && mx >= la.x && mx < la.x + la.width {
-                        let w = app.editor.canvas.grid.width;
-                        let h = app.editor.canvas.grid.height;
-                        let new_grid = PixelGrid::new_transparent(w, h);
-                        let name = format!("Layer {}", app.editor.layers.len() + 1);
-                        let layer = Layer::new(&name, new_grid);
-                        app.editor.active_layer = app.editor.layers.len();
-                        app.editor.layers.push(layer);
-                        return;
-                    }
-                    for i in 0..app.editor.layers.len() as u16 {
-                        let ly = la.y + i;
-                        if my == ly && mx >= la.x && mx < la.x + la.width {
-                            if mx >= la.x && mx < la.x + 3 {
-                                app.editor.layers[i as usize].visible =
-                                    !app.editor.layers[i as usize].visible;
-                                return;
-                            }
-                            if mx == la.x + la.width - 1 {
-                                if app.editor.layers.len() > 1 {
-                                    app.editor.layers.remove(i as usize);
-                                    if app.editor.active_layer >= app.editor.layers.len() {
-                                        app.editor.active_layer = app.editor.layers.len() - 1;
-                                    }
-                                }
-                                return;
-                            }
-                            app.editor.active_layer = i as usize;
+                && let Some(la) = app.editor.layers_card_area
+            {
+                let add_y = la.y + app.editor.layers.len() as u16 + 1;
+                if my == add_y && mx >= la.x && mx < la.x + la.width {
+                    app.editor.push_history();
+                    let w = app.editor.canvas.grid.width;
+                    let h = app.editor.canvas.grid.height;
+                    let new_grid = PixelGrid::new_transparent(w, h);
+                    let name = format!("Layer {}", app.editor.layers.len() + 1);
+                    let layer = Layer::new(&name, new_grid);
+                    app.editor.active_layer = app.editor.layers.len();
+                    app.editor.layers.push(layer);
+                    return;
+                }
+                for i in 0..app.editor.layers.len() as u16 {
+                    let ly = la.y + i;
+                    if my == ly && mx >= la.x && mx < la.x + la.width {
+                        if mx >= la.x && mx < la.x + 3 {
+                            app.editor.layers[i as usize].visible =
+                                !app.editor.layers[i as usize].visible;
                             return;
                         }
+                        if mx == la.x + la.width - 1 {
+                            if app.editor.layers.len() > 1 {
+                                app.editor.push_history();
+                                app.editor.layers.remove(i as usize);
+                                if app.editor.active_layer >= app.editor.layers.len() {
+                                    app.editor.active_layer = app.editor.layers.len() - 1;
+                                }
+                            }
+                            return;
+                        }
+                        app.editor.active_layer = i as usize;
+                        return;
                     }
                 }
+            }
         }
         MouseEventKind::ScrollUp => {
             if let Some(pa) = app.editor.palette_area
-                && mx >= pa.x && mx < pa.x + pa.width && my >= pa.y && my < pa.y + pa.height {
-                    if app.editor.palette_scroll > 0 {
-                        app.editor.palette_scroll -= 1;
-                    }
-                    return;
+                && mx >= pa.x
+                && mx < pa.x + pa.width
+                && my >= pa.y
+                && my < pa.y + pa.height
+            {
+                if app.editor.palette_scroll > 0 {
+                    app.editor.palette_scroll -= 1;
                 }
+                return;
+            }
         }
         MouseEventKind::ScrollDown => {
             if let Some(pa) = app.editor.palette_area
-                && mx >= pa.x && mx < pa.x + pa.width && my >= pa.y && my < pa.y + pa.height {
-                    let bw: u16 = 6;
-                    let bh: u16 = 3;
-                    let gap: u16 = 1;
-                    let blocks_per_row = ((pa.width + gap) / (bw + gap)).max(1);
-                    let total_rows =
-                        (app.editor.palette_colors.len() as u16).div_ceil(blocks_per_row);
-                    let visible_rows = pa.height / (bh + gap);
-                    let max_scroll = total_rows.saturating_sub(visible_rows);
-                    if app.editor.palette_scroll < max_scroll {
-                        app.editor.palette_scroll += 1;
-                    }
-                    return;
+                && mx >= pa.x
+                && mx < pa.x + pa.width
+                && my >= pa.y
+                && my < pa.y + pa.height
+            {
+                let bw: u16 = 6;
+                let bh: u16 = 3;
+                let gap: u16 = 1;
+                let blocks_per_row = ((pa.width + gap) / (bw + gap)).max(1);
+                let total_rows = (app.editor.palette_colors.len() as u16).div_ceil(blocks_per_row);
+                let visible_rows = pa.height / (bh + gap);
+                let max_scroll = total_rows.saturating_sub(visible_rows);
+                if app.editor.palette_scroll < max_scroll {
+                    app.editor.palette_scroll += 1;
                 }
+                return;
+            }
         }
         _ => {}
     }
@@ -218,6 +243,7 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
 
                 match me.kind {
                     MouseEventKind::Down(MouseButton::Left) => {
+                        app.editor.push_history();
                         app.editor.last_paint_pos = Some((px, py));
                         app.editor.paint_primary(px, py);
                     }
@@ -228,6 +254,7 @@ fn handle_mouse_editor(app: &mut App, me: crossterm::event::MouseEvent) {
                         app.editor.last_paint_pos = Some((px, py));
                     }
                     MouseEventKind::Down(MouseButton::Right) => {
+                        app.editor.push_history();
                         app.editor.last_paint_pos = Some((px, py));
                         app.editor.paint_secondary(px, py);
                     }
@@ -310,7 +337,7 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
     let (cx, cy) = (app.editor.canvas.cursor.x, app.editor.canvas.cursor.y);
 
     match key_event.code {
-        KeyCode::Char('q') => app.exit(),
+        KeyCode::Char('Q') => app.exit(),
 
         // Cursor movement
         KeyCode::Up => app.editor.canvas.move_select_up(1),
@@ -323,16 +350,27 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
                 .move_select_down(app.editor.canvas.grid.height - 1);
         }
 
+        // Undo / Redo
+        KeyCode::Char('u') => {
+            app.editor.undo();
+        }
+        KeyCode::Char('U') => {
+            app.editor.redo();
+        }
+
         // Paint
         KeyCode::Char(' ') => {
+            app.editor.push_history();
             app.editor.paint_primary(cx, cy);
         }
         KeyCode::Backspace => {
+            app.editor.push_history();
             app.editor.paint_secondary(cx, cy);
         }
 
         // Erase
         KeyCode::Char('x') => {
+            app.editor.push_history();
             app.editor.paint_erase(cx, cy);
         }
 
@@ -360,7 +398,10 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
 
         // Swap primary/secondary
         KeyCode::Char('Q') => {
-            std::mem::swap(&mut app.editor.palette_primary_index, &mut app.editor.palette_secondary_index);
+            std::mem::swap(
+                &mut app.editor.palette_primary_index,
+                &mut app.editor.palette_secondary_index,
+            );
         }
 
         // Brush size
@@ -382,6 +423,7 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
         }
         // Layers
         KeyCode::Char('L') => {
+            app.editor.push_history();
             let w = app.editor.canvas.grid.width;
             let h = app.editor.canvas.grid.height;
             let new_grid = PixelGrid::new_transparent(w, h);
@@ -391,20 +433,20 @@ fn handle_editor(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
             app.editor.layers.push(layer);
         }
         KeyCode::Delete
-            if app.editor.layers.len() > 1 && app.editor.active_layer < app.editor.layers.len() => {
-                app.editor.layers.remove(app.editor.active_layer);
-                if app.editor.active_layer >= app.editor.layers.len() {
-                    app.editor.active_layer = app.editor.layers.len() - 1;
-                }
+            if app.editor.layers.len() > 1 && app.editor.active_layer < app.editor.layers.len() =>
+        {
+            app.editor.push_history();
+            app.editor.layers.remove(app.editor.active_layer);
+            if app.editor.active_layer >= app.editor.layers.len() {
+                app.editor.active_layer = app.editor.layers.len() - 1;
             }
-        KeyCode::Char('[')
-            if app.editor.active_layer > 0 => {
-                app.editor.active_layer -= 1;
-            }
-        KeyCode::Char(']')
-            if app.editor.active_layer + 1 < app.editor.layers.len() => {
-                app.editor.active_layer += 1;
-            }
+        }
+        KeyCode::Char('[') if app.editor.active_layer > 0 => {
+            app.editor.active_layer -= 1;
+        }
+        KeyCode::Char(']') if app.editor.active_layer + 1 < app.editor.layers.len() => {
+            app.editor.active_layer += 1;
+        }
         KeyCode::Char('V') => {
             let layer = &mut app.editor.layers[app.editor.active_layer];
             layer.visible = !layer.visible;
@@ -440,7 +482,9 @@ fn handle_home(app: &mut App, key_event: KeyEvent) -> io::Result<()> {
         }
         KeyCode::Enter => {
             let selection = app.home_list_state.selected_mut().unwrap_or(usize::MAX);
-            if selection == 0 { app.route = Route::Editor }
+            if selection == 0 {
+                app.route = Route::Editor
+            }
         }
         _ => {}
     }
