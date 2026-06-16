@@ -15,6 +15,10 @@ Terminal-based pixel art editor. Built with Rust and ratatui.
 - Export to PNG
 - Keyboard and mouse input
 
+## Installation for Users 
+
+Check the releases page and grab the right binary for your OS/arch.
+
 ## Build
 
 ```
@@ -73,17 +77,23 @@ make i686-pc-windows-gnu
 
 Prerequisites:
 - **Windows targets:** `mingw-w64` (`apt install gcc-mingw-w64` / `dnf install mingw64-gcc mingw32-gcc`)
-- **AArch64 target:** `aarch64-linux-gnu-gcc` (`apt install gcc-aarch64-linux-gnu`)
+- **AArch64 target:** `aarch64-linux-gnu-gcc` (`apt install gcc-aarch64-linux-gnu` / `dnf install gcc-aarch64-linux-gnu`)
 
-The AArch64 target uses `aarch64-linker.sh`, which reads the `AARCH64_TOOLCHAIN` environment variable to select the cross-compiler prefix (default: `aarch64-linux-gnu`).
+The AArch64 target uses `aarch64-linker.sh`, which reads two environment variables:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `AARCH64_TOOLCHAIN` | `aarch64-linux-gnu` | Cross-compiler prefix |
+| `AARCH64_SYSROOT` | *(none)* | Sysroot path (required on Fedora) |
 
 ```
-# Debian/Ubuntu (default)
+# Debian/Ubuntu — compiler's built-in sysroot is correct
 make aarch64-unknown-linux-gnu
 
-# Fedora/RHEL
-make aarch64-unknown-linux-gnu AARCH64_TOOLCHAIN=aarch64-redhat-linux
+# Fedora — sysroot is at a non-standard path
+make aarch64-unknown-linux-gnu AARCH64_SYSROOT=/usr/aarch64-redhat-linux/sys-root/fc42
 
-# Custom toolchain path
-make aarch64-unknown-linux-gnu AARCH64_TOOLCHAIN=/opt/toolchains/aarch64-none-linux-gnu/aarch64-none-linux-gnu
+# Custom toolchain
+make aarch64-unknown-linux-gnu AARCH64_TOOLCHAIN=/opt/toolchains/aarch64-none-linux-gnu/aarch64-none-linux-gnu \
+                               AARCH64_SYSROOT=/opt/toolchains/aarch64-none-linux-gnu/sys-root
 ```

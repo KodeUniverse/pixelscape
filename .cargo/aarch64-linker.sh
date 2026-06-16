@@ -1,6 +1,9 @@
 #!/bin/sh
 # Wrapper that replaces -lgcc_s with -l:libgcc.a for aarch64 cross-compilation.
-# Override the toolchain prefix by setting AARCH64_TOOLCHAIN (default: aarch64-linux-gnu).
+# Environment variables:
+#   AARCH64_TOOLCHAIN  — cross-compiler prefix (default: aarch64-linux-gnu)
+#   AARCH64_SYSROOT    — sysroot path (optional, set on Fedora where the compiler's
+#                        built-in sysroot may be empty)
 
 TOOLCHAIN="${AARCH64_TOOLCHAIN:-aarch64-linux-gnu}"
 args=""
@@ -13,4 +16,8 @@ for arg in "$@"; do
   fi
   sep=" "
 done
-exec "$TOOLCHAIN-gcc" $args
+if [ -n "$AARCH64_SYSROOT" ]; then
+  exec "$TOOLCHAIN-gcc" --sysroot="$AARCH64_SYSROOT" $args
+else
+  exec "$TOOLCHAIN-gcc" $args
+fi
