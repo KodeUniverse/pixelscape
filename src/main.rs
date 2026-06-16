@@ -9,7 +9,7 @@ use crossterm::execute;
 use log::{LevelFilter, info};
 use simplelog::{Config, WriteLogger};
 use std::path::Path;
-use std::{fs::File, io};
+use std::{fs, io};
 
 #[derive(Parser)]
 struct Args {
@@ -17,11 +17,17 @@ struct Args {
     file: Option<String>,
 }
 
-fn main() -> io::Result<()> {
-    let mut log_dir = std::env::temp_dir();
-    log_dir = log_dir.join("pixelscape/logs/main.log");
+fn log_file() -> io::Result<fs::File> {
+    let mut log_dir = dirs::data_dir().unwrap_or_else(|| Path::new(".").to_path_buf());
+    log_dir.push("pixelscape");
+    log_dir.push("logs");
+    fs::create_dir_all(&log_dir)?;
+    log_dir.push("mains.log");
+    fs::File::create(log_dir)
+}
 
-    match WriteLogger::init(LevelFilter::Info, Config::default(), File::create(log_dir)?) {
+fn main() -> io::Result<()> {
+    match WriteLogger::init(LevelFilter::Info, Config::default(), log_file()?) {
         Ok(()) => (),
         Err(e) => panic!("ERROR: Failed to create logger: {e}."),
     }

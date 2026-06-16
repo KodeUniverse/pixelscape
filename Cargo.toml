@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 bincode = "2.0.1"
 clap = {version="4.6.1", features=["derive"]}
+dirs = "5.0"
 crossterm = "0.29.0"
 image = "0.25"
 log = "0.4.29"
