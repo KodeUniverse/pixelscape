@@ -19,19 +19,36 @@ Terminal-based pixel art editor. Built with Rust and ratatui.
 
 Check the releases page and grab the right binary for your OS/arch.
 
-## Build
+## Build from Source
+
+Requires Rust edition 2024.
 
 ```
 cargo build --release
 ```
 
-Requires Rust edition 2024.
+The binary will be at `target/release/pixelscape` (or `target/release/pixelscape.exe` on Windows).
 
 ## Usage
 
+Download the binary and run inside a modern terminal emulator such as Ghostty, kitty, Alacritty, etc.
+
 ```
-cargo run
-cargo run -- --file project.pxsc
+./pixelscape
+./pixelscape -f pixelscale_project.pxsc
+
+# on Windows
+pixelscape.exe
+```
+
+Also add to PATH for easy use:
+
+```bash
+# Linux / macOS
+mv pixelscape ~/.local/bin/
+
+# Windows (PowerShell)
+Move-Item pixelscape.exe "$env:LOCALAPPDATA\Microsoft\WindowsApps\"
 ```
 
 Open a saved project with `--file` to skip the home screen and load directly into the editor.
