@@ -1,14 +1,16 @@
 #!/bin/sh
-# Replace -lgcc_s with -l:libgcc.a for aarch64 cross-compilation
-# Using a temp file approach to handle args safely
-build=""
+# Wrapper that replaces -lgcc_s with -l:libgcc.a for aarch64 cross-compilation.
+# Override the toolchain prefix by setting AARCH64_TOOLCHAIN (default: aarch64-linux-gnu).
+
+TOOLCHAIN="${AARCH64_TOOLCHAIN:-aarch64-linux-gnu}"
+args=""
 sep=""
 for arg in "$@"; do
   if [ "$arg" = "-lgcc_s" ]; then
-    build="${build}${sep}-l:libgcc.a"
+    args="${args}${sep}-l:libgcc.a"
   else
-    build="${build}${sep}${arg}"
+    args="${args}${sep}${arg}"
   fi
   sep=" "
 done
-exec aarch64-linux-gnu-gcc $build
+exec "$TOOLCHAIN-gcc" $args

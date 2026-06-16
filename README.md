@@ -62,11 +62,28 @@ Projects are saved as `.pxsc` files with a `PIXELSCAPE_FILE_FORMAT` magic header
 
 ## Cross-compilation
 
-A `Makefile` and `.cargo/config.toml` are included for targeting Linux x86_64, Linux aarch64, Windows x86_64, and Windows i686.
+Targets: Linux x86_64, Linux aarch64, Windows x86_64, Windows i686.
 
 ```
 make x86_64-unknown-linux-gnu
 make aarch64-unknown-linux-gnu
 make x86_64-pc-windows-gnu
 make i686-pc-windows-gnu
+```
+
+Prerequisites:
+- **Windows targets:** `mingw-w64` (`apt install gcc-mingw-w64` / `dnf install mingw64-gcc mingw32-gcc`)
+- **AArch64 target:** `aarch64-linux-gnu-gcc` (`apt install gcc-aarch64-linux-gnu`)
+
+The AArch64 target uses `aarch64-linker.sh`, which reads the `AARCH64_TOOLCHAIN` environment variable to select the cross-compiler prefix (default: `aarch64-linux-gnu`).
+
+```
+# Debian/Ubuntu (default)
+make aarch64-unknown-linux-gnu
+
+# Fedora/RHEL
+make aarch64-unknown-linux-gnu AARCH64_TOOLCHAIN=aarch64-redhat-linux
+
+# Custom toolchain path
+make aarch64-unknown-linux-gnu AARCH64_TOOLCHAIN=/opt/toolchains/aarch64-none-linux-gnu/aarch64-none-linux-gnu
 ```
